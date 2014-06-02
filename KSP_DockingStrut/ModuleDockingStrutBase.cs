@@ -92,10 +92,6 @@ namespace DockingStrut
         public void RevertGui()
         {
             this.Mode = this.Linked ? DSMode.Linked : DSMode.Unlinked;
-            if (this.Mode != DSMode.Linked)
-            {
-                //this.CleanPartner();
-            }
             foreach (var e in this.Events)
             {
                 e.active = e.guiActive = false;
