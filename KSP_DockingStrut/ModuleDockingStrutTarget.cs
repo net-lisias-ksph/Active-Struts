@@ -103,6 +103,8 @@ namespace DockingStrut
             this.Mode = DSMode.Target;
             this.Targeter = targeter;
             this.TargeterId = targeter.ID.ToString();
+            this.part.SetHighlightColor(Color.green);
+            this.part.SetHighlight(true);
         }
 
         private void SetTargeterAtLoad()
@@ -153,12 +155,18 @@ namespace DockingStrut
                 case DSMode.Target:
                 {
                     this.Events["SetAsTarget"].active = this.Events["SetAsTarget"].guiActive = true;
+                    this.part.SetHighlightColor(Color.green);
+                    this.part.SetHighlight(true);
                 }
                     break;
             }
             if (this.Mode == DSMode.Invalid)
             {
                 return;
+            }
+            if (this.Mode != DSMode.Target)
+            {
+                this.part.SetHighlight(false);
             }
             this.Error = ErrorNone;
             this.Fields["Error"].guiActive = false;
