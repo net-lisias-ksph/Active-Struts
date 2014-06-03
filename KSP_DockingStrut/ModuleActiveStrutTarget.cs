@@ -43,7 +43,7 @@ namespace ActiveStruts
         public void SetAsTarget()
         {
             ConnectorManager.Deactivate();
-            this._targeter.SetTarget(this);
+            this._targeter.SetTarget(this, ASUtil.Tuple.New(this.HasPartner, this.Partner as ModuleActiveStrutTargeter));
             this.Mode = ASMode.Linked;
             foreach (var moduleDockingStrut in ASUtil.GetAllDockingStrutModules(this.vessel))
             {
@@ -68,7 +68,7 @@ namespace ActiveStruts
             this.Fields["Error"].guiActive = true;
         }
 
-        public void SetTargetedBy(ModuleActiveStrutTargeter targeter)
+        public void SetTargetedBy(ModuleActiveStrutTargeter targeter, float distance)
         {
             this.Mode = ASMode.Target;
             this._targeter = targeter;
@@ -108,6 +108,19 @@ namespace ActiveStruts
                 return;
             }
             this.State = this.Mode.ToString();
+        }
+
+        public void Unlink()
+        {
+            this.Mode = ASMode.Unlinked;
+            if (this.HasPartner)
+            {
+                var moduleActiveStrutTargeter = this.Partner as ModuleActiveStrutTargeter;
+                if (moduleActiveStrutTargeter != null)
+                {
+                    moduleActiveStrutTargeter.ClearStrut();
+                }
+            }
         }
     }
 }

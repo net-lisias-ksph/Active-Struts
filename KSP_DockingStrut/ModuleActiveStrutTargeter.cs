@@ -105,7 +105,7 @@ namespace ActiveStruts
                 var possibleTarget in
                     this.vessel.parts.Where(p => p != this.part && p.Modules.Contains(TargetModuleName))
                         .Select(p => p.Modules[TargetModuleName] as ModuleActiveStrutTarget)
-                        .Where(possibleTarget => possibleTarget.Mode == ASMode.Unlinked && !possibleTarget.ConnectionInUse()))
+                        .Where(possibleTarget => !possibleTarget.HasPartner || !possibleTarget.ConnectionInUse()))
             {
                 this._setPossibleTarget(possibleTarget);
             }
@@ -158,7 +158,7 @@ namespace ActiveStruts
             if (this._checkPossibleTarget())
             {
                 this._checkTarget = false;
-                this.SetTarget(this.Target);
+                this.SetTarget(this.Target, ASUtil.Tuple.New<bool, ModuleActiveStrutTargeter>(false, null));
             }
             else if (this._ticksToCheckForLinkAtStart-- < 0)
             {
@@ -166,7 +166,7 @@ namespace ActiveStruts
             }
         }
 
-        public void SetTarget(ModuleActiveStrutTarget target)
+        public void SetTarget(ModuleActiveStrutTarget target, ASUtil.Tuple<bool, ModuleActiveStrutTargeter> halfWayData)
         {
             if (!this._checkPossibleTarget(target))
             {
@@ -179,8 +179,17 @@ namespace ActiveStruts
             }
             this.Target = target;
             this.Mode = ASMode.Linked;
-            this._setStrutEnd(target.part.transform.position);
+            this._setStrutEnd(target.part.transform.position, halfWayData.Item1);
+            if (halfWayData.Item1)
+            {
+                halfWayData.Item2.ExtendHalf(this.RayCastOrigin);
+            }
             OSD.Success("Link established");
+        }
+
+        private void ExtendHalf(Vector3 rayCastOrigin)
+        {
+            this._setStrutEnd(rayCastOrigin, true);
         }
 
         private void SetTargetAtLoad()
@@ -206,8 +215,14 @@ namespace ActiveStruts
         [KSPEvent(name = "Unlink", active = false, guiName = "Unlink", guiActiveUnfocused = true, unfocusedRange = 50)]
         public void Unlink()
         {
-            this.Target.Mode = ASMode.Unlinked;
+            this.Target.Unlink();
+
             this.UnlinkSelf();
+        }
+
+        public void ClearStrut()
+        {
+            this.Strut.localScale = Vector3.zero;
         }
 
         [KSPAction("UnlinkAction", KSPActionGroup.None, guiName = "Unlink")]
@@ -288,8 +303,8 @@ namespace ActiveStruts
                         if (target != null)
                         {
                             this.Target = target as ModuleActiveStrutTarget;
-                            this.SetTarget(this.Target);
-                            this.Target.SetTargetedBy(this);
+                            this.SetTarget(this.Target, ASUtil.Tuple.New<bool, ModuleActiveStrutTargeter>(false, null));
+                            this.Target.SetTargetedBy(this, Vector3.Distance(Target.part.transform.position, this.part.transform.position));
                             this._checkForReDocking = false;
                         }
                     }
@@ -386,18 +401,19 @@ namespace ActiveStruts
                 target.SetErrorMessage("Obstructed by " + hitResult.Item2.name);
                 return;
             }
-            target.SetTargetedBy(this);
+            target.SetTargetedBy(this, distanceTestResult.Item2);
             foreach (var e in target.Events)
             {
                 e.active = e.guiActive = false;
             }
         }
 
-        private void _setStrutEnd(Vector3 position)
+        private void _setStrutEnd(Vector3 position, bool halfWay = false)
         {
             this.Strut.LookAt(position);
             this.Strut.localScale = new Vector3(this.StrutX, this.StrutY, 1);
-            this.Strut.localScale = new Vector3(this.StrutX, this.StrutY, -1*Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(position)));
+            var distance = -1*Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(position))*(halfWay ? 0.5f : 1.0f);
+            this.Strut.localScale = new Vector3(this.StrutX, this.StrutY, distance);
         }
 
         private ASUtil.Tuple<bool, Part> _tryPartHit(ModuleActiveStrutTarget target)

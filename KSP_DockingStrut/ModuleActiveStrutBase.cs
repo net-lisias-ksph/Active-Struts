@@ -96,7 +96,7 @@ namespace ActiveStruts
             {
                 return this.Mode == ASMode.Linked;
             }
-            return this.Partner.ConnectionInUse(true) && this.Mode == ASMode.Linked;
+            return this.Partner.ConnectionInUse(true) || this.Mode == ASMode.Linked;
         }
 
         public abstract override void OnStart(StartState state);
