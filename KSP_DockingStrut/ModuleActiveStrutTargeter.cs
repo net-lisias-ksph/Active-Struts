@@ -4,21 +4,62 @@ using UnityEngine;
 
 namespace ActiveStruts
 {
-    public class ModuleDockingStrutTargeter : ModuleDockingStrutBase
+    public class StateManager
     {
+        private ASMode _partnerMode;
+        private ASMode _ownMode;
+        private bool _hasPartnerLastSet;
+
+        public string DisplayMode
+        {
+            get
+            {
+                if (_partnerMode == ASMode.Linked || _ownMode == ASMode.Linked)
+                {
+                    return ASMode.Linked.ToString();
+                }
+                return this._hasPartnerLastSet ? this._partnerMode.ToString() : this._ownMode.ToString();
+            }
+        }
+
+        public void SetOwnMode(ASMode mode)
+        {
+            this._ownMode = mode;
+            this._hasPartnerLastSet = false;
+        }
+
+        public void SetPartnerMode(ASMode mode)
+        {
+            this._partnerMode = mode;
+            this._hasPartnerLastSet = true;
+        }
+    }
+
+    public class ModuleActiveStrutTargeter : ModuleActiveStrutBase
+    {
+        [KSPField(isPersistant = true)] public bool IsLinked = false;
         [KSPField] public string RayCastOriginName = "strut";
-        [KSPField(isPersistant = true, guiActive = true)] public string TargetId = Guid.Empty.ToString();
+        protected Transform Strut;
+        [KSPField] public string StrutName = "strut";
+        protected float StrutX, StrutY;
+        [KSPField(isPersistant = true, guiActive = false)] public string TargetId = Guid.Empty.ToString();
         private bool _checkForReDocking;
         private bool _checkTarget;
         private ConfigurableJoint _joint;
         private bool _jointCreated;
         private Transform _raycastOrigin;
+        public readonly StateManager StateManager = new StateManager();
 
         [KSPField] private int _ticksToCheckForLinkAtStart = 100;
 
+        private bool IsPartnerTargeter
+        {
+            get { return this.Partner != null && this.Partner is ModuleActiveStrutTargeter; }
+        }
+
         protected override bool Linked
         {
-            get { return this.Mode == DSMode.Linked && this.Target != null && this.Target.ID != Guid.Empty; }
+            get { return this.Mode == ASMode.Linked && this.Target != null && this.Target.ID != Guid.Empty; }
         }
 
         public Vector3 RayCastOrigin
@@ -26,7 +67,7 @@ namespace ActiveStruts
             get { return this._raycastOrigin.position; }
         }
 
-        public ModuleDockingStrutTarget Target { get; set; }
+        public ModuleActiveStrutTarget Target { get; set; }
 
         public Guid TargetID
         {
@@ -37,49 +78,67 @@ namespace ActiveStruts
         [KSPEvent(name = "Abort", active = false, guiName = "Abort link", guiActiveUnfocused = true, unfocusedRange = 50)]
         public void Abort()
         {
-            this.Mode = DSMode.Unlinked;
-            foreach (var moduleDockingStrut in DSUtil.GetAllDockingStrutModules(this.vessel))
+            ConnectorManager.Deactivate();
+            this.Mode = ASMode.Unlinked;
+            foreach (var moduleDockingStrut in ASUtil.GetAllDockingStrutModules(this.vessel))
             {
                 moduleDockingStrut.RevertGui();
             }
             this.Events["Abort"].active = this.Events["Abort"].guiActive = false;
         }
 
+        private void ActivateLineRender()
+        {
+            ConnectorManager.Activate(this, this.part.Rigidbody.position);
+        }
+
         [KSPEvent(name = "Link", active = false, guiName = "Link", guiActiveUnfocused = true, unfocusedRange = 50)]
         public void Link()
         {
+            if (this.HasPartner && this.Partner.ConnectionInUse())
+            {
+                OSD.Warn("Targeter strut can only have one active connection at the same time");
+                return;
+            }
+            this.ActivateLineRender();
             foreach (
                 var possibleTarget in
                     this.vessel.parts.Where(p => p != this.part && p.Modules.Contains(TargetModuleName))
-                        .Select(p => p.Modules[TargetModuleName] as ModuleDockingStrutTarget)
-                        .Where(possibleTarget => possibleTarget == null || possibleTarget.Mode == DSMode.Unlinked))
+                        .Select(p => p.Modules[TargetModuleName] as ModuleActiveStrutTarget)
+                        .Where(possibleTarget => possibleTarget.Mode == ASMode.Unlinked && !possibleTarget.ConnectionInUse()))
             {
                 this._setPossibleTarget(possibleTarget);
             }
-            this.Mode = DSMode.Targeting;
+            this.Mode = ASMode.Targeting;
             this.Events["Link"].active = this.Events["Link"].guiActive = false;
         }
 
         public override void OnStart(StartState state)
         {
-            base.OnStart(state);
+            this.Strut = this.part.FindModelTransform(this.StrutName);
+            this.StrutX = this.Strut.localScale.x;
+            this.StrutY = this.Strut.localScale.y;
             this.Strut.localScale = Vector3.zero;
             if (state == StartState.Editor)
             {
                 return;
+            }
+            if (this.HasPartner)
+            {
+                this.Partner = this.part.Modules[TargetModuleName] as ModuleActiveStrutBase;
             }
             this._raycastOrigin = this.part.FindModelTransform(this.RayCastOriginName);
             if (this.ID == Guid.Empty)
             {
                 this.ID = Guid.NewGuid();
             }
-            if (this.TargetID != Guid.Empty && this.Mode == DSMode.Linked)
+            if (this.TargetID != Guid.Empty && this.Mode == ASMode.Linked)
             {
                 this.SetTargetAtLoad();
             }
             else
             {
-                this.Mode = DSMode.Unlinked;
+                this.Mode = ASMode.Unlinked;
             }
             this.Initialized = true;
             this.Events["Unlink"].guiName = "Unlink Target";
@@ -88,7 +147,7 @@ namespace ActiveStruts
         public override void OnUpdate()
         {
             base.OnUpdate();
-            if (this.Mode == DSMode.Unlinked)
+            if (this.Mode == ASMode.Unlinked)
             {
                 return;
             }
@@ -107,11 +166,11 @@ namespace ActiveStruts
             }
         }
 
-        public void SetTarget(ModuleDockingStrutTarget target)
+        public void SetTarget(ModuleActiveStrutTarget target)
         {
             if (!this._checkPossibleTarget(target))
             {
-                this.Mode = DSMode.Unlinked;
+                this.Mode = ASMode.Unlinked;
                 return;
             }
             foreach (var e in this.Events)
@@ -119,19 +178,18 @@ namespace ActiveStruts
                 e.active = e.guiActive = false;
             }
             this.Target = target;
-            this.TargetID = target.ID;
-            this.Mode = DSMode.Linked;
-            this._setStrutEnd(target.StrutTarget);
-            OSD.Success("Linked " + this.ID + " and " + this.TargetID);
+            this.Mode = ASMode.Linked;
+            this._setStrutEnd(target.part.transform.position);
+            OSD.Success("Link established");
         }
 
         private void SetTargetAtLoad()
         {
             Debug.Log("setting target at load with ID " + this.TargetID);
             var searchResult = this.vessel.GetDockingStrut(this.TargetID);
-            if (searchResult.Item1 && searchResult.Item2 is ModuleDockingStrutTarget)
+            if (searchResult.Item1 && searchResult.Item2 is ModuleActiveStrutTarget)
             {
-                this.Target = searchResult.Item2 as ModuleDockingStrutTarget;
+                this.Target = searchResult.Item2 as ModuleActiveStrutTarget;
                 this._checkTarget = true;
                 Debug.Log("target set");
             }
@@ -141,24 +199,30 @@ namespace ActiveStruts
                 {
                     e.active = e.guiActive = false;
                 }
-                this.Mode = DSMode.Unlinked;
+                this.Mode = ASMode.Unlinked;
             }
         }
 
-        public override void UnlinkPartner(bool secondary = false)
+        [KSPEvent(name = "Unlink", active = false, guiName = "Unlink", guiActiveUnfocused = true, unfocusedRange = 50)]
+        public void Unlink()
         {
-            if (secondary)
+            this.Target.Mode = ASMode.Unlinked;
+            this.UnlinkSelf();
+        }
+
+        [KSPAction("UnlinkAction", KSPActionGroup.None, guiName = "Unlink")]
+        public void UnlinkAction(KSPActionParam param)
+        {
+            if (this.Mode == ASMode.Linked)
             {
-                this.UnlinkSelf();
-                return;
+                this.Unlink();
             }
-            this.Target.UnlinkPartner(true);
         }
 
-        protected override void UnlinkSelf()
+        protected void UnlinkSelf()
         {
-            OSD.Success("Unlinked " + this.ID + " and " + this.TargetID);
-            this.Mode = DSMode.Unlinked;
+            OSD.Success("Unlinked");
+            this.Mode = ASMode.Unlinked;
             this.Events["Unlink"].active = this.Events["Unlink"].guiActive = false;
             this.Target = null;
             this.TargetID = Guid.Empty;
@@ -170,25 +234,32 @@ namespace ActiveStruts
         {
             switch (this.Mode)
             {
-                case DSMode.Linked:
+                case ASMode.Linked:
                 {
                     this.Events["Unlink"].active = this.Events["Unlink"].guiActive = true;
                 }
                     break;
-                case DSMode.Targeting:
+                case ASMode.Targeting:
                 {
                     this.Events["Abort"].active = this.Events["Abort"].guiActive = true;
                 }
                     break;
-                case DSMode.Unlinked:
+                case ASMode.Unlinked:
                 {
-                    this.Events["Link"].active = this.Events["Link"].guiActive = true;
+                    if (this.HasPartner && this.Partner.ConnectionInUse())
+                    {
+                        this.Events["Link"].active = this.Events["Link"].guiActive = false;
+                    }
+                    else
+                    {
+                        this.Events["Link"].active = this.Events["Link"].guiActive = true;
+                    }
                 }
                     break;
             }
         }
 
-        protected override void UpdateLink()
+        public void UpdateLink()
         {
             try
             {
@@ -196,7 +267,7 @@ namespace ActiveStruts
                 {
                     if (this.Target.vessel != this.vessel)
                     {
-                        this.Mode = DSMode.Unlinked;
+                        this.Mode = ASMode.Unlinked;
                         this._checkForReDocking = true;
                         this.Events["Unlink"].guiActive = false;
                     }
@@ -216,7 +287,7 @@ namespace ActiveStruts
                         var target = this.vessel.GetDockingStrut(this.TargetID).Item2;
                         if (target != null)
                         {
-                            this.Target = target as ModuleDockingStrutTarget;
+                            this.Target = target as ModuleActiveStrutTarget;
                             this.SetTarget(this.Target);
                             this.Target.SetTargetedBy(this);
                             this._checkForReDocking = false;
@@ -258,13 +329,18 @@ namespace ActiveStruts
             }
         }
 
-        private DSUtil.Tuple<bool, Single> _checkDistance(PartModule target)
+        public void ShareState(ASMode mode)
         {
-            var distance = Vector3.Distance(target.part.transform.position, this.part.transform.position);
-            return DSUtil.Tuple.New(distance <= MaxDistance, distance);
+            this.StateManager.SetPartnerMode(mode);
         }
 
-        private bool _checkPossibleTarget(ModuleDockingStrutTarget target = null)
+        private ASUtil.Tuple<bool, Single> _checkDistance(PartModule target)
+        {
+            var distance = Vector3.Distance(target.part.transform.position, this.part.transform.position);
+            return ASUtil.Tuple.New(distance <= MaxDistance, distance);
+        }
+
+        private bool _checkPossibleTarget(ModuleActiveStrutTarget target = null)
         {
             var tempTarget = target ?? this.Target;
             try
@@ -295,7 +371,7 @@ namespace ActiveStruts
             }
         }
 
-        private void _setPossibleTarget(ModuleDockingStrutTarget target)
+        private void _setPossibleTarget(ModuleActiveStrutTarget target)
         {
             var distanceTestResult = this._checkDistance(target);
             if (!distanceTestResult.Item1)
@@ -310,7 +386,6 @@ namespace ActiveStruts
                 target.SetErrorMessage("Obstructed by " + hitResult.Item2.name);
                 return;
             }
-            target.BackupOldTargeter();
             target.SetTargetedBy(this);
             foreach (var e in target.Events)
             {
@@ -322,17 +397,17 @@ namespace ActiveStruts
         {
             this.Strut.LookAt(position);
             this.Strut.localScale = new Vector3(this.StrutX, this.StrutY, 1);
-            this.Strut.localScale = new Vector3(this.StrutX, this.StrutY, Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(position)));
+            this.Strut.localScale = new Vector3(this.StrutX, this.StrutY, -1*Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(position)));
         }
 
-        private DSUtil.Tuple<bool, Part> _tryPartHit(ModuleDockingStrutTarget target)
+        private ASUtil.Tuple<bool, Part> _tryPartHit(ModuleActiveStrutTarget target)
         {
             RaycastHit info;
             var start = this.RayCastOrigin;
-            var dir = (target.StrutTarget - start).normalized;
+            var dir = (target.part.transform.position - start).normalized;
             var hit = Physics.Raycast(new Ray(start, dir), out info, MaxDistance + 1);
-            var hittedPart = DSUtil.PartFromHit(info);
-            return DSUtil.Tuple.New(hit, hittedPart);
+            var hittedPart = ASUtil.PartFromHit(info);
+            return ASUtil.Tuple.New(hit, hittedPart);
         }
     }
 }

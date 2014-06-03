@@ -5,51 +5,100 @@ using UnityEngine;
 
 namespace ActiveStruts
 {
-    public static class DSUtil
+    [KSPAddon(KSPAddon.Startup.Flight, false)]
+    public class ConnectorManager : MonoBehaviour
     {
-        public static List<ModuleDockingStrutBase> GetAllDockingStrutModules(Vessel vessel)
+        private const float ConnectorDimension = 0.15f;
+        private static GameObject _connector;
+        private static ModuleActiveStrutTargeter _targeter;
+        private static Vector3 _origin;
+        private static Vector3 _target;
+        private static bool _initialized;
+        public static bool Active { get; set; }
+        private static bool _valid { get; set; }
+
+        public static void Activate(ModuleActiveStrutTargeter origin, Vector3 originVector)
+        {
+            _targeter = origin;
+            _origin = originVector;
+            Active = true;
+        }
+
+        public static void Deactivate()
+        {
+            Active = false;
+        }
+
+        public void OnStart()
+        {
+            _connector = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            _connector.name = "ASConn";
+            DestroyImmediate(_connector.collider);
+            _connector.transform.localScale = new Vector3(ConnectorDimension, ConnectorDimension, ConnectorDimension);
+            //TODO meshrenderer
+            _initialized = true;
+            Debug.Log("conn init");
+        }
+
+        public void OnUpdate()
+        {
+            if (!HighLogic.LoadedSceneIsFlight || !Active || !_initialized)
+            {
+                return;
+            }
+            Debug.Log("would paint conn between [" + _origin.x + ", " + _origin.y + ", " + _origin.z + "] and [" + _target.x + ", " + _target.y + ", " + _target.z + "]");
+            _target = FlightCamera.fetch.mainCamera.ScreenToWorldPoint(Input.mousePosition);
+            var trans = _connector.transform;
+            trans.LookAt(_target);
+            trans.localScale = new Vector3(_origin.x, _origin.y, Vector3.Distance(Vector3.zero, trans.InverseTransformPoint(_target)));
+        }
+    }
+
+    public static class ASUtil
+    {
+        public static List<ModuleActiveStrutBase> GetAllDockingStrutModules(Vessel vessel)
         {
             var partList = (from part in vessel.parts
-                            where part.Modules.Contains(ModuleDockingStrutBase.TargetModuleName) || part.Modules.Contains(ModuleDockingStrutBase.TargeterModuleName)
+                            where part.Modules.Contains(ModuleActiveStrutBase.TargetModuleName) || part.Modules.Contains(ModuleActiveStrutBase.TargeterModuleName)
                             select part);
-            var moduleList = new List<ModuleDockingStrutBase>();
+            var moduleList = new List<ModuleActiveStrutBase>();
             foreach (var part in partList)
             {
-                if (part.Modules.Contains(ModuleDockingStrutBase.TargetModuleName))
+                if (part.Modules.Contains(ModuleActiveStrutBase.TargetModuleName))
                 {
-                    moduleList.Add(part.Modules[ModuleDockingStrutBase.TargetModuleName] as ModuleDockingStrutBase);
+                    moduleList.Add(part.Modules[ModuleActiveStrutBase.TargetModuleName] as ModuleActiveStrutBase);
                 }
-                if (part.Modules.Contains(ModuleDockingStrutBase.TargeterModuleName))
+                if (part.Modules.Contains(ModuleActiveStrutBase.TargeterModuleName))
                 {
-                    moduleList.Add(part.Modules[ModuleDockingStrutBase.TargeterModuleName] as ModuleDockingStrutBase);
+                    moduleList.Add(part.Modules[ModuleActiveStrutBase.TargeterModuleName] as ModuleActiveStrutBase);
                 }
             }
             return moduleList;
         }
 
-        public static Tuple<bool, ModuleDockingStrutBase, ModuleDockingStrutBase> GetDockingStrut(this Vessel v, Guid targetId)
+        public static Tuple<bool, ModuleActiveStrutBase, ModuleActiveStrutBase> GetDockingStrut(this Vessel v, Guid targetId)
         {
             foreach (var p in from p in v.Parts
-                              let targeterFlag = p.Modules.Contains(ModuleDockingStrutBase.TargeterModuleName)
-                              let targetFlag = p.Modules.Contains(ModuleDockingStrutBase.TargetModuleName)
+                              let targeterFlag = p.Modules.Contains(ModuleActiveStrutBase.TargeterModuleName)
+                              let targetFlag = p.Modules.Contains(ModuleActiveStrutBase.TargetModuleName)
                               where targeterFlag || targetFlag
                               where
-                                  (targeterFlag && ((p.Modules[ModuleDockingStrutBase.TargeterModuleName] as ModuleDockingStrutBase) != null && (p.Modules[ModuleDockingStrutBase.TargeterModuleName] as ModuleDockingStrutBase).ID == targetId)) ||
-                                  (targetFlag && ((p.Modules[ModuleDockingStrutBase.TargetModuleName] as ModuleDockingStrutBase) != null && (p.Modules[ModuleDockingStrutBase.TargetModuleName] as ModuleDockingStrutBase).ID == targetId))
+                                  (targeterFlag && ((p.Modules[ModuleActiveStrutBase.TargeterModuleName] as ModuleActiveStrutBase) != null && (p.Modules[ModuleActiveStrutBase.TargeterModuleName] as ModuleActiveStrutBase).ID == targetId)) ||
+                                  (targetFlag && ((p.Modules[ModuleActiveStrutBase.TargetModuleName] as ModuleActiveStrutBase) != null && (p.Modules[ModuleActiveStrutBase.TargetModuleName] as ModuleActiveStrutBase).ID == targetId))
                               select p)
             {
-                ModuleDockingStrutBase target = null, targeter = null;
-                if (p.Modules.Contains(ModuleDockingStrutBase.TargetModuleName))
+                ModuleActiveStrutBase target = null, targeter = null;
+                if (p.Modules.Contains(ModuleActiveStrutBase.TargetModuleName))
                 {
-                    target = p.Modules[ModuleDockingStrutBase.TargetModuleName] as ModuleDockingStrutBase;
+                    target = p.Modules[ModuleActiveStrutBase.TargetModuleName] as ModuleActiveStrutBase;
                 }
-                if (p.Modules.Contains(ModuleDockingStrutBase.TargeterModuleName))
+                if (p.Modules.Contains(ModuleActiveStrutBase.TargeterModuleName))
                 {
-                    targeter = p.Modules[ModuleDockingStrutBase.TargeterModuleName] as ModuleDockingStrutBase;
+                    targeter = p.Modules[ModuleActiveStrutBase.TargeterModuleName] as ModuleActiveStrutBase;
                 }
                 return Tuple.New(true, target, targeter);
             }
-            return Tuple.New<bool, ModuleDockingStrutBase, ModuleDockingStrutBase>(false, null, null);
+            return Tuple.New<bool, ModuleActiveStrutBase, ModuleActiveStrutBase>(false, null, null);
         }
 
         public static Part PartFromHit(RaycastHit hit)

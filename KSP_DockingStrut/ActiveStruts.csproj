@@ -47,11 +47,11 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="DSMode.cs" />
-    <Compile Include="DSUtil.cs" />
-    <Compile Include="ModuleDockingStrutBase.cs" />
-    <Compile Include="ModuleDockingStrutTarget.cs" />
-    <Compile Include="ModuleDockingStrutTargeter.cs" />
+    <Compile Include="ASMode.cs" />
+    <Compile Include="ASUtil.cs" />
+    <Compile Include="ModuleActiveStrutBase.cs" />
+    <Compile Include="ModuleActiveStrutTarget.cs" />
+    <Compile Include="ModuleActiveStrutTargeter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

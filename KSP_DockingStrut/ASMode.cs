@@ -1,6 +1,6 @@
 ﻿namespace ActiveStruts
 {
-    public enum DSMode
+    public enum ASMode
     {
         Unlinked,
         Linked,
