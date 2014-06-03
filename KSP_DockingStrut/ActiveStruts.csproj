@@ -7,8 +7,8 @@
     <ProjectGuid>{93A0B490-9598-449E-9A15-31427B585C76}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>DockingStrut</RootNamespace>
-    <AssemblyName>DockingStrut</AssemblyName>
+    <RootNamespace>ActiveStruts</RootNamespace>
+    <AssemblyName>ActiveStruts</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />

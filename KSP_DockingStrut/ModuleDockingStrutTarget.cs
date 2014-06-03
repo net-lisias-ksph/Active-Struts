@@ -1,7 +1,7 @@
 ﻿using System;
 using UnityEngine;
 
-namespace DockingStrut
+namespace ActiveStruts
 {
     public class ModuleDockingStrutTarget : ModuleDockingStrutBase
     {

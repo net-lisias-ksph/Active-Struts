@@ -24,7 +24,7 @@ THE SOFTWARE.
 using System;
 using UnityEngine;
 
-namespace DockingStrut
+namespace ActiveStruts
 {
     public abstract class ModuleDockingStrutBase : PartModule
     {

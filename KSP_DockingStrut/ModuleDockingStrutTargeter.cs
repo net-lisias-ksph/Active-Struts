@@ -2,7 +2,7 @@
 using System.Linq;
 using UnityEngine;
 
-namespace DockingStrut
+namespace ActiveStruts
 {
     public class ModuleDockingStrutTargeter : ModuleDockingStrutBase
     {

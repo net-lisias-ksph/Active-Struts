@@ -1,4 +1,4 @@
-﻿namespace DockingStrut
+﻿namespace ActiveStruts
 {
     public enum DSMode
     {

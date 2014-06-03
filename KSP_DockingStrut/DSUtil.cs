@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-namespace DockingStrut
+namespace ActiveStruts
 {
     public static class DSUtil
     {
