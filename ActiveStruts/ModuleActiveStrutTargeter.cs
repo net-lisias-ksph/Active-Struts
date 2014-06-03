@@ -6,15 +6,15 @@ namespace ActiveStruts
 {
     public class StateManager
     {
-        private ASMode _partnerMode;
-        private ASMode _ownMode;
         private bool _hasPartnerLastSet;
+        private ASMode _ownMode;
+        private ASMode _partnerMode;
 
         public string DisplayMode
         {
             get
             {
-                if (_partnerMode == ASMode.Linked || _ownMode == ASMode.Linked)
+                if (this._partnerMode == ASMode.Linked || this._ownMode == ASMode.Linked)
                 {
                     return ASMode.Linked.ToString();
                 }
@@ -37,6 +37,7 @@ namespace ActiveStruts
 
     public class ModuleActiveStrutTargeter : ModuleActiveStrutBase
     {
+        public readonly StateManager StateManager = new StateManager();
         [KSPField(isPersistant = true)] public bool IsLinked = false;
         [KSPField] public string RayCastOriginName = "strut";
         protected Transform Strut;
@@ -48,7 +49,6 @@ namespace ActiveStruts
         private ConfigurableJoint _joint;
         private bool _jointCreated;
         private Transform _raycastOrigin;
-        public readonly StateManager StateManager = new StateManager();
 
         [KSPField] private int _ticksToCheckForLinkAtStart = 100;
 
@@ -90,6 +90,16 @@ namespace ActiveStruts
         private void ActivateLineRender()
         {
             ConnectorManager.Activate(this, this.part.Rigidbody.position);
+        }
+
+        public void ClearStrut()
+        {
+            this.Strut.localScale = Vector3.zero;
+        }
+
+        private void ExtendHalf(Vector3 rayCastOrigin)
+        {
+            this._setStrutEnd(rayCastOrigin, true);
         }
 
         [KSPEvent(name = "Link", active = false, guiName = "Link", guiActiveUnfocused = true, unfocusedRange = 50)]
@@ -187,11 +197,6 @@ namespace ActiveStruts
             OSD.Success("Link established");
         }
 
-        private void ExtendHalf(Vector3 rayCastOrigin)
-        {
-            this._setStrutEnd(rayCastOrigin, true);
-        }
-
         private void SetTargetAtLoad()
         {
             Debug.Log("setting target at load with ID " + this.TargetID);
@@ -212,17 +217,17 @@ namespace ActiveStruts
             }
         }
 
+        public void ShareState(ASMode mode)
+        {
+            this.StateManager.SetPartnerMode(mode);
+        }
+
         [KSPEvent(name = "Unlink", active = false, guiName = "Unlink", guiActiveUnfocused = true, unfocusedRange = 50)]
         public void Unlink()
         {
             this.Target.Unlink();
 
             this.UnlinkSelf();
-        }
-
-        public void ClearStrut()
-        {
-            this.Strut.localScale = Vector3.zero;
         }
 
         [KSPAction("UnlinkAction", KSPActionGroup.None, guiName = "Unlink")]
@@ -304,7 +309,7 @@ namespace ActiveStruts
                         {
                             this.Target = target as ModuleActiveStrutTarget;
                             this.SetTarget(this.Target, ASUtil.Tuple.New<bool, ModuleActiveStrutTargeter>(false, null));
-                            this.Target.SetTargetedBy(this, Vector3.Distance(Target.part.transform.position, this.part.transform.position));
+                            this.Target.SetTargetedBy(this, Vector3.Distance(this.Target.part.transform.position, this.part.transform.position));
                             this._checkForReDocking = false;
                         }
                     }
@@ -342,11 +347,6 @@ namespace ActiveStruts
             {
                 OSD.Error("Sorry, something unexpected happened!");
             }
-        }
-
-        public void ShareState(ASMode mode)
-        {
-            this.StateManager.SetPartnerMode(mode);
         }
 
         private ASUtil.Tuple<bool, Single> _checkDistance(PartModule target)

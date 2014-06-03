@@ -8,10 +8,11 @@ namespace ActiveStruts
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class ConnectorManager : MonoBehaviour
     {
-        private const float ConnectorDimension = 0.15f;
+        private const float ConnectorDimension = 0.05f;
+        private const string _path = "ActiveStruts/IR_LoneStrut/";
         private static GameObject _connector;
         private static ModuleActiveStrutTargeter _targeter;
-        private static Vector3 _origin;
+        private static Vector3? _origin;
         private static Vector3 _target;
         private static bool _initialized;
         public static bool Active { get; set; }
@@ -22,36 +23,82 @@ namespace ActiveStruts
             _targeter = origin;
             _origin = originVector;
             Active = true;
+            _connector.SetActive(true);
         }
 
         public static void Deactivate()
         {
             Active = false;
+            _connector.SetActive(false);
         }
 
-        public void OnStart()
+        public void Start()
         {
-            _connector = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            _connector = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             _connector.name = "ASConn";
             DestroyImmediate(_connector.collider);
             _connector.transform.localScale = new Vector3(ConnectorDimension, ConnectorDimension, ConnectorDimension);
+            //Debug.Log("trying to set mesh stuff");
+            var mr = _connector.GetComponent<MeshRenderer>();
+            mr.name = "ASConn";
+            mr.material = new Material(Shader.Find("Diffuse")) {mainTexture = GameDatabase.Instance.GetTexture(_path + "IR_Robotic.tga", false)};
+            var greenRgb = ASUtil.GetRgbaFromColor(Color.green);
+            mr.material.color = new Color(greenRgb[0], greenRgb[1], greenRgb[2], 0.5f);
             //TODO meshrenderer
             _initialized = true;
-            Debug.Log("conn init");
+            //Debug.Log("conn init");
+            _connector.SetActive(false);
         }
 
-        public void OnUpdate()
+        public void Update()
         {
             if (!HighLogic.LoadedSceneIsFlight || !Active || !_initialized)
             {
                 return;
             }
-            Debug.Log("would paint conn between [" + _origin.x + ", " + _origin.y + ", " + _origin.z + "] and [" + _target.x + ", " + _target.y + ", " + _target.z + "]");
-            _target = FlightCamera.fetch.mainCamera.ScreenToWorldPoint(Input.mousePosition);
+            //Debug.Log("would paint conn between [" + _origin.x + ", " + _origin.y + ", " + _origin.z + "] and [" + _target.x + ", " + _target.y + ", " + _target.z + "]");
+            //_target = FlightCamera.fetch.mainCamera.ScreenToWorldPoint(Input.mousePosition);
+            //var ray = FlightCamera.fetch.mainCamera.ScreenPointToRay(Input.mousePosition);
+            //RaycastHit hit;
+            //Physics.Raycast(ray, out hit, 557059);
+            var mpd = ASUtil.GetCurrentMousePositionData(_origin);
+            if (mpd == null || !mpd.OriginValid)
+            {
+                _connector.SetActive(false);
+                return;
+            }
+            _connector.SetActive(true);
+            _target = mpd.ExactHitPosition;
             var trans = _connector.transform;
-            trans.LookAt(_target);
-            trans.localScale = new Vector3(_origin.x, _origin.y, Vector3.Distance(Vector3.zero, trans.InverseTransformPoint(_target)));
+            trans.position = _origin ?? Vector3.zero;
+            trans.LookAt((Vector3) _target);
+            var usableOrigin = _origin ?? Vector3.zero;
+            trans.localScale = new Vector3(usableOrigin.x, usableOrigin.y, 1);
+            //trans.localScale = new Vector3(_origin.x, _origin.y, Vector3.Distance(Vector3.zero, trans.InverseTransformPoint(_target)));
+            //trans.localScale = new Vector3(1, 1, Vector3.Distance(Vector3.zero, trans.InverseTransformPoint(_target)));
+            var dist = Vector3.Distance(Vector3.zero, trans.InverseTransformPoint(_target))/2.0f;
+            trans.localScale = new Vector3(0.05f, dist, 0.05f);
+            trans.Rotate(new Vector3(0, 0, 1), 90f);
+            trans.Rotate(new Vector3(1, 0, 0), 90f);
+            trans.Translate(new Vector3(0f, dist, 0f));
         }
+    }
+
+    public class MousePositionData
+    {
+        public float AngleFromOriginExact { get; set; }
+        public float AngleFromOriginPart { get; set; }
+        public float DistanceFromReferenceOriginExact { get; set; }
+        public float DistanceFromReferenceOriginPart { get; set; }
+        public Vector3 ExactHitPosition { get; set; }
+        public RaycastHit Hit { get; set; }
+        public bool HitCurrentVessel { get; set; }
+        public Part HittedPart { get; set; }
+        public bool OriginValid { get; set; }
+        public Vector3 PartHitPosition { get; set; }
+        public Ray Ray { get; set; }
+        public float RayDistance { get; set; }
+        public Vector3 ReferenceOrigin { get; set; }
     }
 
     public static class ASUtil
@@ -74,6 +121,34 @@ namespace ActiveStruts
                 }
             }
             return moduleList;
+        }
+
+        public static MousePositionData GetCurrentMousePositionData(Vector3? refOrigin)
+        {
+            var ray = HighLogic.LoadedSceneIsFlight ? FlightCamera.fetch.mainCamera.ScreenPointToRay(Input.mousePosition) : Camera.main.ScreenPointToRay(Input.mousePosition);
+            RaycastHit hit;
+            if (!Physics.Raycast(ray, out hit, ModuleActiveStrutBase.MaxDistance))
+            {
+                return null;
+            }
+            var hitGoFlag = hit.transform != null && hit.transform.gameObject != null;
+            var mpd = new MousePositionData
+                      {
+                          OriginValid = refOrigin != null,
+                          Ray = ray,
+                          Hit = hit,
+                          PartHitPosition = hitGoFlag ? hit.transform.position : Vector3.zero,
+                          RayDistance = hit.distance,
+                          ReferenceOrigin = refOrigin ?? Vector3.zero,
+                          ExactHitPosition = hit.point,
+                          DistanceFromReferenceOriginPart = Vector3.Distance(refOrigin ?? Vector3.zero, hitGoFlag ? hit.transform.position : Vector3.zero),
+                          DistanceFromReferenceOriginExact = Vector3.Distance(refOrigin ?? Vector3.zero, hit.point),
+                          HittedPart = hitGoFlag ? hit.transform.gameObject.GetComponent<Part>() : null,
+                          AngleFromOriginPart = Vector3.Angle(refOrigin ?? Vector3.zero, hitGoFlag ? hit.transform.position : Vector3.zero),
+                          AngleFromOriginExact = Vector3.Angle(refOrigin ?? Vector3.zero, hit.point)
+                      };
+            mpd.HitCurrentVessel = mpd.HittedPart != null && mpd.HittedPart.vessel == FlightGlobals.ActiveVessel;
+            return mpd;
         }
 
         public static Tuple<bool, ModuleActiveStrutBase, ModuleActiveStrutBase> GetDockingStrut(this Vessel v, Guid targetId)
@@ -99,6 +174,16 @@ namespace ActiveStruts
                 return Tuple.New(true, target, targeter);
             }
             return Tuple.New<bool, ModuleActiveStrutBase, ModuleActiveStrutBase>(false, null, null);
+        }
+
+        public static float[] GetRgbaFromColor(Color color)
+        {
+            var ret = new float[4];
+            ret[0] = color.r;
+            ret[1] = color.g;
+            ret[2] = color.b;
+            ret[3] = color.a;
+            return ret;
         }
 
         public static Part PartFromHit(RaycastHit hit)

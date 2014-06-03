@@ -76,6 +76,19 @@ namespace ActiveStruts
             this.part.SetHighlight(true);
         }
 
+        public void Unlink()
+        {
+            this.Mode = ASMode.Unlinked;
+            if (this.HasPartner)
+            {
+                var moduleActiveStrutTargeter = this.Partner as ModuleActiveStrutTargeter;
+                if (moduleActiveStrutTargeter != null)
+                {
+                    moduleActiveStrutTargeter.ClearStrut();
+                }
+            }
+        }
+
         internal override void UpdateGui()
         {
             switch (this.Mode)
@@ -108,19 +121,6 @@ namespace ActiveStruts
                 return;
             }
             this.State = this.Mode.ToString();
-        }
-
-        public void Unlink()
-        {
-            this.Mode = ASMode.Unlinked;
-            if (this.HasPartner)
-            {
-                var moduleActiveStrutTargeter = this.Partner as ModuleActiveStrutTargeter;
-                if (moduleActiveStrutTargeter != null)
-                {
-                    moduleActiveStrutTargeter.ClearStrut();
-                }
-            }
         }
     }
 }

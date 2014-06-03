@@ -27,7 +27,7 @@ namespace ActiveStruts
 {
     public abstract class ModuleActiveStrutBase : PartModule
     {
-        protected const float MaxDistance = 15;
+        public const float MaxDistance = 15;
         public const string TargeterModuleName = "ModuleActiveStrutTargeter";
         public const string TargetModuleName = "ModuleActiveStrutTarget";
         [KSPField(isPersistant = true)] public bool HasPartner = false;
