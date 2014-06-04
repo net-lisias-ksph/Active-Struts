@@ -16,20 +16,23 @@ namespace ActiveStruts
         private static Vector3 _target;
         private static bool _initialized;
         public static bool Active { get; set; }
-        private static bool _valid { get; set; }
+        private static bool _valid;
+        private static bool _listenForLeftClick;
 
-        public static void Activate(ModuleActiveStrutTargeter origin, Vector3 originVector)
+        public static void Activate(ModuleActiveStrutTargeter origin, Vector3 originVector, bool listenForLeftClick)
         {
             _targeter = origin;
             _origin = originVector;
             Active = true;
             _connector.SetActive(true);
+            _listenForLeftClick = listenForLeftClick;
         }
 
         public static void Deactivate()
         {
             Active = false;
             _connector.SetActive(false);
+            _listenForLeftClick = false;
         }
 
         public void Start()
@@ -61,17 +64,21 @@ namespace ActiveStruts
             //var ray = FlightCamera.fetch.mainCamera.ScreenPointToRay(Input.mousePosition);
             //RaycastHit hit;
             //Physics.Raycast(ray, out hit, 557059);
-            var mpd = ASUtil.GetCurrentMousePositionData(_origin);
+            var mpd = ASUtil.GetCurrentMousePositionData(_origin, _targeter.transform.up);
             if (mpd == null || !mpd.OriginValid)
             {
                 _connector.SetActive(false);
+                _valid = false;
+                _updateColor();
                 return;
             }
+            Debug.Log("[AS] hitcurrvess: " + mpd.HitCurrentVessel + "; distfromorigin: " + mpd.DistanceFromReferenceOriginExact + "; anglefromorigin: " + mpd.AngleFromOriginExact);
+            _valid = mpd.HitCurrentVessel && mpd.DistanceFromReferenceOriginExact <= ModuleActiveStrutBase.MaxDistance && mpd.AngleFromOriginExact <= 90;
             _connector.SetActive(true);
             _target = mpd.ExactHitPosition;
             var trans = _connector.transform;
             trans.position = _origin ?? Vector3.zero;
-            trans.LookAt((Vector3) _target);
+            trans.LookAt(_target);
             var usableOrigin = _origin ?? Vector3.zero;
             trans.localScale = new Vector3(usableOrigin.x, usableOrigin.y, 1);
             //trans.localScale = new Vector3(_origin.x, _origin.y, Vector3.Distance(Vector3.zero, trans.InverseTransformPoint(_target)));
@@ -81,6 +88,27 @@ namespace ActiveStruts
             trans.Rotate(new Vector3(0, 0, 1), 90f);
             trans.Rotate(new Vector3(1, 0, 0), 90f);
             trans.Translate(new Vector3(0f, dist, 0f));
+            _updateColor();
+            if (_listenForLeftClick && Input.GetKeyDown(KeyCode.Mouse0) && mpd.HitCurrentVessel)
+            {
+                _targeter.FreeAttachRequest(mpd);
+            }
+            if (_listenForLeftClick && Input.GetKeyDown(KeyCode.Mouse1))
+            {
+                _targeter.AbortAttachRequest();
+            }
+        }
+
+        private static Color _colorToTransparentColor(Color color)
+        {
+            var rgba = ASUtil.GetRgbaFromColor(color);
+            return new Color(rgba[0], rgba[1], rgba[2], 0.5f);
+        }
+
+        private static void _updateColor()
+        {
+            var mat = (_connector.GetComponent<MeshRenderer>()).material;
+            mat.color = _valid ? _colorToTransparentColor(Color.green) : _colorToTransparentColor(Color.red);
         }
     }
 
@@ -123,7 +151,7 @@ namespace ActiveStruts
             return moduleList;
         }
 
-        public static MousePositionData GetCurrentMousePositionData(Vector3? refOrigin)
+        public static MousePositionData GetCurrentMousePositionData(Vector3? refOrigin, Vector3? refOriginUpVector)
         {
             var ray = HighLogic.LoadedSceneIsFlight ? FlightCamera.fetch.mainCamera.ScreenPointToRay(Input.mousePosition) : Camera.main.ScreenPointToRay(Input.mousePosition);
             RaycastHit hit;
@@ -132,6 +160,7 @@ namespace ActiveStruts
                 return null;
             }
             var hitGoFlag = hit.transform != null && hit.transform.gameObject != null;
+            var rayUpVector = ray.direction;
             var mpd = new MousePositionData
                       {
                           OriginValid = refOrigin != null,
@@ -144,14 +173,16 @@ namespace ActiveStruts
                           DistanceFromReferenceOriginPart = Vector3.Distance(refOrigin ?? Vector3.zero, hitGoFlag ? hit.transform.position : Vector3.zero),
                           DistanceFromReferenceOriginExact = Vector3.Distance(refOrigin ?? Vector3.zero, hit.point),
                           HittedPart = hitGoFlag ? hit.transform.gameObject.GetComponent<Part>() : null,
-                          AngleFromOriginPart = Vector3.Angle(refOrigin ?? Vector3.zero, hitGoFlag ? hit.transform.position : Vector3.zero),
-                          AngleFromOriginExact = Vector3.Angle(refOrigin ?? Vector3.zero, hit.point)
+                          //AngleFromOriginPart = Vector3.Angle(refOrigin ?? Vector3.zero, hitGoFlag ? hit.transform.position : Vector3.zero),
+                          AngleFromOriginPart = Vector3.Angle(refOriginUpVector ?? Vector3.zero, hitGoFlag ? hit.transform.up : Vector3.zero),
+                          //AngleFromOriginExact = Vector3.Angle(refOrigin ?? Vector3.zero, hit.point)
+                          AngleFromOriginExact = Vector3.Angle(refOriginUpVector ?? Vector3.zero, rayUpVector)
                       };
             mpd.HitCurrentVessel = mpd.HittedPart != null && mpd.HittedPart.vessel == FlightGlobals.ActiveVessel;
             return mpd;
         }
 
-        public static Tuple<bool, ModuleActiveStrutBase, ModuleActiveStrutBase> GetDockingStrut(this Vessel v, Guid targetId)
+        public static Tuple<bool, ModuleActiveStrutBase, ModuleActiveStrutBase> GetActiveStrut(this Vessel v, Guid targetId)
         {
             foreach (var p in from p in v.Parts
                               let targeterFlag = p.Modules.Contains(ModuleActiveStrutBase.TargeterModuleName)
@@ -261,11 +292,11 @@ namespace ActiveStruts
 
     public static class OSD
     {
-        private const string Prefix = "[DockingStrut] ";
+        private const string Prefix = "[ActiveStruts] ";
 
         private static readonly List<Message> Msgs = new List<Message>();
 
-        public static void AddMessage(String text, Color color, float shownFor = 3)
+        public static void AddMessage(String text, Color color, float shownFor = 3.7f)
         {
             var msg = new Message {Text = Prefix + text, Color = color, HideAt = Time.time + shownFor};
             Msgs.Add(msg);

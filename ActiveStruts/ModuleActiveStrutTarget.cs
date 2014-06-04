@@ -55,6 +55,15 @@ namespace ActiveStruts
                 moduleDockingStrut.UpdateGui();
             }
             this.Events["SetAsTarget"].active = this.Events["SetAsTarget"].guiActive = false;
+            if (this.HasPartner)
+            {
+                var moduleActiveStrutTargeter = this.Partner as ModuleActiveStrutTargeter;
+                if (moduleActiveStrutTargeter != null)
+                {
+                    moduleActiveStrutTargeter.MuteStrength();
+                }
+            }
+            this.UpdateGui();
         }
 
         public void SetErrorMessage(string errMsg)
@@ -79,14 +88,17 @@ namespace ActiveStruts
         public void Unlink()
         {
             this.Mode = ASMode.Unlinked;
-            if (this.HasPartner)
+            if (!this.HasPartner)
             {
-                var moduleActiveStrutTargeter = this.Partner as ModuleActiveStrutTargeter;
-                if (moduleActiveStrutTargeter != null)
-                {
-                    moduleActiveStrutTargeter.ClearStrut();
-                }
+                return;
             }
+            var moduleActiveStrutTargeter = this.Partner as ModuleActiveStrutTargeter;
+            if (moduleActiveStrutTargeter == null)
+            {
+                return;
+            }
+            moduleActiveStrutTargeter.ClearStrut();
+            moduleActiveStrutTargeter.ShowStrength();
         }
 
         internal override void UpdateGui()

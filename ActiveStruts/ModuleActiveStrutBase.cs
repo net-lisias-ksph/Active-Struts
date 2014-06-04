@@ -28,10 +28,13 @@ namespace ActiveStruts
     public abstract class ModuleActiveStrutBase : PartModule
     {
         public const float MaxDistance = 15;
+        public const float WeakStrength = 50;
+        public const float NormalStrength = 2000;
+        public const float MaximalStrength = 40000;
         public const string TargeterModuleName = "ModuleActiveStrutTargeter";
         public const string TargetModuleName = "ModuleActiveStrutTarget";
         [KSPField(isPersistant = true)] public bool HasPartner = false;
-        [KSPField(isPersistant = true, guiActive = false)] protected string Id = Guid.Empty.ToString();
+        [KSPField(isPersistant = true)] protected string Id = Guid.Empty.ToString();
         protected bool Initialized;
         protected ModuleActiveStrutBase Partner;
 

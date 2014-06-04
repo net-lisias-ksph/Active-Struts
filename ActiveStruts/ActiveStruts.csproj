@@ -49,6 +49,7 @@
   <ItemGroup>
     <Compile Include="ASMode.cs" />
     <Compile Include="ASUtil.cs" />
+    <Compile Include="LinkType.cs" />
     <Compile Include="ModuleActiveStrutBase.cs" />
     <Compile Include="ModuleActiveStrutTarget.cs" />
     <Compile Include="ModuleActiveStrutTargeter.cs" />
