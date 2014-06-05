@@ -81,6 +81,14 @@ namespace ActiveStruts
                         moduleActiveStrutTargeter.IsLinked = true;
                     }
                 }
+                if (value == ASMode.Unlinked && this is ModuleActiveStrutTargeter)
+                {
+                    var moduleActiveStrutTargeter = this as ModuleActiveStrutTargeter;
+                    if (moduleActiveStrutTargeter != null)
+                    {
+                        moduleActiveStrutTargeter.IsLinked = false;
+                    }
+                }
                 if (this is ModuleActiveStrutTargeter && this.HasPartner)
                 {
                     var moduleActiveStrutTargeter = this as ModuleActiveStrutTargeter;

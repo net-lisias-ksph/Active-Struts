@@ -56,12 +56,18 @@ namespace ActiveStruts
         private bool _jointCreated;
         private Transform _raycastOrigin;
         private Part _freeAttachPart;
+        private bool _suppressEvents = false;
 
         [KSPField] private int _ticksToCheckForLinkAtStart = 100;
 
         private bool IsPartnerTargeter
         {
             get { return this.Partner != null && this.Partner is ModuleActiveStrutTargeter; }
+        }
+
+        public void SuppressAllEvents(bool flag)
+        {
+            this._suppressEvents = flag;
         }
 
         protected override bool Linked
@@ -74,7 +80,28 @@ namespace ActiveStruts
             get { return this._raycastOrigin.position; }
         }
 
-        public ModuleActiveStrutTarget Target { get; set; }
+        private ModuleActiveStrutTarget _target;
+
+        public ModuleActiveStrutTarget Target
+        {
+            get
+            {
+                if (this._target != null)
+                {
+                    return this._target;
+                }
+                if (this.TargetID != Guid.Empty)
+                {
+                    this._target = ASUtil.GetAllActiveStrutsModules(this.vessel).Where(m => m is ModuleActiveStrutTarget && m.ID == this.TargetID).Select(m => m as ModuleActiveStrutTarget).FirstOrDefault();
+                }
+                return _target;
+            }
+            set
+            {
+                TargetID = value.ID;
+                _target = value;
+            }
+        }
 
         public Guid TargetID
         {
@@ -86,8 +113,9 @@ namespace ActiveStruts
         public void Abort()
         {
             ConnectorManager.Deactivate();
+            ASUtil.RestoreEventsOnAllTargeters();
             this.Mode = ASMode.Unlinked;
-            foreach (var moduleDockingStrut in ASUtil.GetAllDockingStrutModules(this.vessel))
+            foreach (var moduleDockingStrut in ASUtil.GetAllActiveStrutsModules(this.vessel))
             {
                 moduleDockingStrut.RevertGui();
             }
@@ -158,9 +186,42 @@ namespace ActiveStruts
             this.Strut.localScale = Vector3.zero;
         }
 
-        private void ExtendHalf(Vector3 rayCastOrigin)
+        private void ExtendHalf(Vector3 target, ModuleActiveStrutTargeter halfWayPartner)
         {
-            this._setStrutEnd(rayCastOrigin, true);
+            this._setStrutEnd(target, true);
+            this.HalfWayPartner = halfWayPartner;
+            this.UpdateGui();
+        }
+
+        [KSPField(isPersistant = true)] public string HalfWayPartnerId;
+        private ModuleActiveStrutTargeter _halfWayPartner;
+        [KSPField(isPersistant = true)] public bool HalfWayLink = false;
+
+        public ModuleActiveStrutTargeter HalfWayPartner
+        {
+            get
+            {
+                if (!HalfWayLink)
+                {
+                    return null;
+                }
+                return this._halfWayPartner ??
+                       (this._halfWayPartner = ASUtil.GetAllActiveStrutsModules(this.vessel).Where(m => m is ModuleActiveStrutTargeter && m.ID == new Guid(this.HalfWayPartnerId)).Select(m => m as ModuleActiveStrutTargeter).FirstOrDefault());
+            }
+            set
+            {
+                if (value == null)
+                {
+                    this.HalfWayLink = false;
+                    _halfWayPartner = null;
+                    HalfWayPartnerId = Guid.Empty.ToString();
+                }
+                else
+                {
+                    this.HalfWayLink = true;
+                    HalfWayPartnerId = value.ID.ToString();
+                }
+            }
         }
 
         [KSPEvent(name = "Link", active = false, guiName = "Link", guiActiveUnfocused = true, unfocusedRange = 50)]
@@ -182,6 +243,7 @@ namespace ActiveStruts
             }
             this.Mode = ASMode.Targeting;
             this.Events["Link"].active = this.Events["Link"].guiActive = false;
+            ASUtil.HideEventsOnAllTargeters(this.ID);
         }
 
         public override void OnStart(StartState state)
@@ -263,8 +325,9 @@ namespace ActiveStruts
             this._setStrutEnd(target.part.transform.position, halfWayData.Item1);
             if (halfWayData.Item1)
             {
-                halfWayData.Item2.ExtendHalf(this.RayCastOrigin);
+                halfWayData.Item2.ExtendHalf(this.RayCastOrigin, this);
             }
+            ASUtil.RestoreEventsOnAllTargeters();
             OSD.Success("Link established");
         }
 
@@ -312,9 +375,16 @@ namespace ActiveStruts
             }
             else
             {
-                this.Target.Unlink();
-                this.Target = null;
-                this.TargetID = Guid.Empty;
+                if (HalfWayLink)
+                {
+                    HalfWayPartner.Unlink();
+                }
+                else
+                {
+                    this.Target.Unlink();
+                    //this.Target = null;
+                    //this.TargetID = Guid.Empty;
+                }
             }
             this.Mode = ASMode.Unlinked;
             this.Events["Unlink"].active = this.Events["Unlink"].guiActive = false;
@@ -323,10 +393,41 @@ namespace ActiveStruts
             OSD.Success("Unlinked");
         }
 
+        [KSPAction("ToggleLinkAction", KSPActionGroup.None, guiName = "Toggle Link")]
+        public void ToggleLinkAction(KSPActionParam param)
+        {
+            this.ToggleLink();
+        }
+
+        [KSPEvent(name = "ToggleLink", active = false, guiName = "Toggle Link")]
+        public void ToggleLink()
+        {
+            if (Linked)
+            {
+                this.Unlink();
+                return;
+            }
+            if (HalfWayLink)
+            {
+                HalfWayPartner.ToggleLink();
+                return;
+            }
+            if (this.Target == null)
+            {
+                return;
+            }
+            if (!this._checkPossibleTarget())
+            {
+                OSD.Warn("Can't reconnect to target.");
+                return;
+            }
+            this.SetTarget(this.Target, this.Target.HasPartner ? ASUtil.Tuple.New(true, this.Target.GetPartner()) : ASUtil.Tuple.New<bool, ModuleActiveStrutTargeter>(false, null));
+        }
+
         [KSPAction("UnlinkAction", KSPActionGroup.None, guiName = "Unlink")]
         public void UnlinkAction(KSPActionParam param)
         {
-            if (this.Mode == ASMode.Linked)
+            if (this.Mode == ASMode.Linked || HalfWayLink)
             {
                 this.Unlink();
             }
@@ -334,6 +435,15 @@ namespace ActiveStruts
 
         internal override void UpdateGui()
         {
+            if (this._suppressEvents)
+            {
+                this.Events["Unlink"].active = this.Events["Unlink"].guiActive = false;
+                this.Events["Link"].active = this.Events["Link"].guiActive = false;
+                this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = false;
+                this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
+                this.Events["Abort"].active = this.Events["Abort"].guiActive = false;
+                return;
+            }
             switch (this.Mode)
             {
                 case ASMode.Linked:
@@ -341,6 +451,7 @@ namespace ActiveStruts
                     this.Events["Unlink"].active = this.Events["Unlink"].guiActive = true;
                     this.Events["Link"].active = this.Events["Link"].guiActive = false;
                     this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = false;
+                    this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
                 }
                     break;
                 case ASMode.Targeting:
@@ -355,11 +466,19 @@ namespace ActiveStruts
                     {
                         this.Events["Link"].active = this.Events["Link"].guiActive = false;
                         this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = false;
+                        this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
                     }
                     else
                     {
                         this.Events["Link"].active = this.Events["Link"].guiActive = true;
                         this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = true;
+                        this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
+                    }
+                    if (HalfWayLink)
+                    {
+                        this.Events["Unlink"].active = this.Events["Unlink"].guiActive = true;
+                        this.Events["Link"].active = this.Events["Link"].guiActive = false;
+                        this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
                     }
                 }
                     break;

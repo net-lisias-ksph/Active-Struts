@@ -45,7 +45,7 @@ namespace ActiveStruts
             ConnectorManager.Deactivate();
             this._targeter.SetTarget(this, ASUtil.Tuple.New(this.HasPartner, this.Partner as ModuleActiveStrutTargeter));
             this.Mode = ASMode.Linked;
-            foreach (var moduleDockingStrut in ASUtil.GetAllDockingStrutModules(this.vessel))
+            foreach (var moduleDockingStrut in ASUtil.GetAllActiveStrutsModules(this.vessel))
             {
                 if (moduleDockingStrut is ModuleActiveStrutTarget)
                 {
@@ -64,6 +64,15 @@ namespace ActiveStruts
                 }
             }
             this.UpdateGui();
+        }
+
+        public ModuleActiveStrutTargeter GetPartner()
+        {
+            if (this.HasPartner)
+            {
+                return this.Partner as ModuleActiveStrutTargeter;
+            }
+            return null;
         }
 
         public void SetErrorMessage(string errMsg)

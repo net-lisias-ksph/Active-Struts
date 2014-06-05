@@ -49,11 +49,14 @@
   <ItemGroup>
     <Compile Include="ASMode.cs" />
     <Compile Include="ASUtil.cs" />
+    <Compile Include="ConnectorManager.cs" />
     <Compile Include="LinkType.cs" />
     <Compile Include="ModuleActiveStrutBase.cs" />
     <Compile Include="ModuleActiveStrutTarget.cs" />
     <Compile Include="ModuleActiveStrutTargeter.cs" />
+    <Compile Include="OSDInfo.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TargetHighlighter.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="License.txt">
