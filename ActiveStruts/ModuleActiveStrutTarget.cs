@@ -71,6 +71,7 @@ namespace ActiveStruts
                 {
                     moduleActiveStrutTargeter.MuteStrength();
                     moduleActiveStrutTargeter.ShareState(this.Mode);
+                    moduleActiveStrutTargeter.HalfWayPartner = this._targeter;
                 }
             }
             this.UpdateGui();
@@ -87,7 +88,7 @@ namespace ActiveStruts
             this.Fields["Error"].guiActive = true;
         }
 
-        public void SetTargetedBy(ModuleActiveStrutTargeter targeter, float distance)
+        public void SetTargetedBy(ModuleActiveStrutTargeter targeter)
         {
             this.Mode = ASMode.Target;
             this._targeter = targeter;

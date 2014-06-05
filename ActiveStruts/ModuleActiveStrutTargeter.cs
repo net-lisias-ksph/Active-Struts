@@ -347,6 +347,7 @@ namespace ActiveStruts
         public void ShareState(ASMode mode)
         {
             this.StateManager.SetPartnerMode(mode);
+            this.UpdateGui();
         }
 
         public void ShowStrength()
@@ -384,7 +385,9 @@ namespace ActiveStruts
                 OSD.Warn("Can't reconnect to target.");
                 return;
             }
-            this.SetTarget(this.Target, this.Target.HasPartner ? ASUtil.Tuple.New(true, this.Target.GetPartner()) : ASUtil.Tuple.New<bool, ModuleActiveStrutTargeter>(false, null));
+            this.Target.SetTargetedBy(this);
+            this.Target.SetAsTarget();
+            //this.SetTarget(this.Target, this.Target.HasPartner ? ASUtil.Tuple.New(true, this.Target.GetPartner()) : ASUtil.Tuple.New<bool, ModuleActiveStrutTargeter>(false, null));
         }
 
         [KSPAction("ToggleLinkAction", KSPActionGroup.None, guiName = "Toggle Link")]
@@ -455,6 +458,7 @@ namespace ActiveStruts
                 {
                     this.Events["Abort"].active = this.Events["Abort"].guiActive = true;
                     this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = false;
+                    this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
                 }
                     break;
                 case ASMode.Unlinked:
@@ -469,7 +473,14 @@ namespace ActiveStruts
                     {
                         this.Events["Link"].active = this.Events["Link"].guiActive = true;
                         this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = true;
-                        this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
+                        if (TargetID != Guid.Empty && (!Target.HasPartner || !Target.ConnectionInUse()))
+                        {
+                            this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
+                        }
+                        else
+                        {
+                            this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
+                        }
                     }
                     if (this.HalfWayLink)
                     {
@@ -487,6 +498,7 @@ namespace ActiveStruts
                 }
                     break;
             }
+            this.State = StateManager.DisplayMode;
         }
 
         public void UpdateLink()
@@ -529,7 +541,8 @@ namespace ActiveStruts
                         {
                             this.Target = target as ModuleActiveStrutTarget;
                             this.SetTarget(this.Target, ASUtil.Tuple.New<bool, ModuleActiveStrutTargeter>(false, null));
-                            this.Target.SetTargetedBy(this, Vector3.Distance(this.Target.part.transform.position, this.part.transform.position));
+                            //this.Target.SetTargetedBy(this, Vector3.Distance(this.Target.part.transform.position, this.part.transform.position));
+                            this.Target.SetTargetedBy(this);
                             this._checkForReDocking = false;
                         }
                     }
@@ -670,7 +683,8 @@ namespace ActiveStruts
                 target.SetErrorMessage("Obstructed by " + hitResult.Item2.name);
                 return;
             }
-            target.SetTargetedBy(this, distanceTestResult.Item2);
+            //target.SetTargetedBy(this, distanceTestResult.Item2);
+            target.SetTargetedBy(this);
             foreach (var e in target.Events)
             {
                 e.active = e.guiActive = false;

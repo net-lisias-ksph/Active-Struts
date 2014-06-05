@@ -13,12 +13,27 @@ namespace ActiveStruts
                 return;
             }
             var targeter = data.Modules[ModuleActiveStrutBase.TargeterModuleName] as ModuleActiveStrutTargeter;
-            if (targeter == null || targeter.Target == null)
+            if (targeter == null)
             {
                 return;
             }
-            targeter.Target.part.SetHighlight(false);
-            targeter.Target.GetPartner().SetTargetHighlighterOverride(false);
+            if (targeter.Target == null && !targeter.HalfWayLink)
+            {
+                return;
+            }
+            if (targeter.HalfWayLink && targeter.HalfWayPartner != null)
+            {
+                targeter.HalfWayPartner.part.SetHighlightDefault();
+                targeter.HalfWayPartner.SetTargetHighlighterOverride(false);
+            }
+            else if (targeter.Target != null)
+            {
+                targeter.Target.part.SetHighlightDefault();
+                if (targeter.HasPartner)
+                {
+                    targeter.Target.GetPartner().SetTargetHighlighterOverride(false);
+                }
+            }
         }
 
         //must not be static
@@ -30,7 +45,11 @@ namespace ActiveStruts
                 return;
             }
             var targeter = data.Modules[ModuleActiveStrutBase.TargeterModuleName] as ModuleActiveStrutTargeter;
-            if (targeter == null || (targeter.Target == null && !targeter.HalfWayLink))
+            if (targeter == null)
+            {
+                return;
+            }
+            if (targeter.Target == null && !targeter.HalfWayLink)
             {
                 return;
             }
@@ -44,7 +63,10 @@ namespace ActiveStruts
             {
                 targeter.Target.part.SetHighlightColor(Color.cyan);
                 targeter.Target.part.SetHighlight(true);
-                targeter.Target.GetPartner().SetTargetHighlighterOverride(true);
+                if (targeter.HasPartner)
+                {
+                    targeter.Target.GetPartner().SetTargetHighlighterOverride(true);
+                }
             }
         }
 

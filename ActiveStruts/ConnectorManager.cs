@@ -48,6 +48,7 @@ namespace ActiveStruts
             _initialized = true;
             //Debug.Log("conn init");
             _connector.SetActive(false);
+            ASUtil.RestoreEventsOnAllTargeters();
         }
 
         public void Update()
