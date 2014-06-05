@@ -17,6 +17,7 @@ namespace ActiveStruts
 
         public void Start()
         {
+            Debug.Log("[AS] starting target highlighter");
             GameEvents.onPartActionUICreate.Add(ActionMenuCreated);
             GameEvents.onPartActionUIDismiss.Add(ActionMenuClosed);
         }
@@ -26,8 +27,9 @@ namespace ActiveStruts
             return (part.Modules.Contains(ModuleActiveStrutBase.TargeterModuleName));
         }
 
-        private static void ActionMenuClosed(Part data)
+        public static void ActionMenuClosed(Part data)
         {
+            Debug.Log("[AS] action menu closed");
             if (!_checkForModule(data))
             {
                 return;
@@ -40,8 +42,9 @@ namespace ActiveStruts
             targeter.Target.part.SetHighlight(false);
         }
 
-        private static void ActionMenuCreated(Part data)
+        public static void ActionMenuCreated(Part data)
         {
+            Debug.Log("[AS] action menu opened");
             if (!_checkForModule(data))
             {
                 return;
