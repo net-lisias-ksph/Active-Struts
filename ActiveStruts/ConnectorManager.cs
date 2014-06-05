@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace ActiveStruts
 {
@@ -16,9 +12,9 @@ namespace ActiveStruts
         private static Vector3? _origin;
         private static Vector3 _target;
         private static bool _initialized;
-        public static bool Active { get; set; }
         private static bool _valid;
         private static bool _listenForLeftClick;
+        public static bool Active { get; set; }
 
         public static void Activate(ModuleActiveStrutTargeter origin, Vector3 originVector, bool listenForLeftClick)
         {
@@ -45,7 +41,7 @@ namespace ActiveStruts
             //Debug.Log("trying to set mesh stuff");
             var mr = _connector.GetComponent<MeshRenderer>();
             mr.name = "ASConn";
-            mr.material = new Material(Shader.Find("Diffuse")) { mainTexture = GameDatabase.Instance.GetTexture(_path + "IR_Robotic.tga", false) };
+            mr.material = new Material(Shader.Find("Diffuse")) {mainTexture = GameDatabase.Instance.GetTexture(_path + "IR_Robotic.tga", false)};
             var greenRgb = ASUtil.GetRgbaFromColor(Color.green);
             mr.material.color = new Color(greenRgb[0], greenRgb[1], greenRgb[2], 0.5f);
             //TODO meshrenderer
@@ -84,7 +80,7 @@ namespace ActiveStruts
             trans.localScale = new Vector3(usableOrigin.x, usableOrigin.y, 1);
             //trans.localScale = new Vector3(_origin.x, _origin.y, Vector3.Distance(Vector3.zero, trans.InverseTransformPoint(_target)));
             //trans.localScale = new Vector3(1, 1, Vector3.Distance(Vector3.zero, trans.InverseTransformPoint(_target)));
-            var dist = Vector3.Distance(Vector3.zero, trans.InverseTransformPoint(_target)) / 2.0f;
+            var dist = Vector3.Distance(Vector3.zero, trans.InverseTransformPoint(_target))/2.0f;
             trans.localScale = new Vector3(0.05f, dist, 0.05f);
             trans.Rotate(new Vector3(0, 0, 1), 90f);
             trans.Rotate(new Vector3(1, 0, 0), 90f);

@@ -38,49 +38,79 @@ namespace ActiveStruts
     public class ModuleActiveStrutTargeter : ModuleActiveStrutBase
     {
         public readonly StateManager StateManager = new StateManager();
-        [KSPField(isPersistant = true)] public bool IsLinked = false;
-        [KSPField(isPersistant = true)] public bool IsFreeAttached = false;
+        [KSPField(isPersistant = true)] public float FreeAttachDistance = 0;
         [KSPField(isPersistant = true)] public float FreeAttachPosX = 0;
         [KSPField(isPersistant = true)] public float FreeAttachPosY = 0;
         [KSPField(isPersistant = true)] public float FreeAttachPosZ = 0;
-        [KSPField(isPersistant = true)] public float FreeAttachDistance = 0;
-        [KSPField(isPersistant = true, guiActive = true)] public LinkType Strength = LinkType.None;
+        [KSPField(isPersistant = true)] public bool HalfWayLink = false;
+        [KSPField(isPersistant = true)] public string HalfWayPartnerId;
+        [KSPField(isPersistant = true)] public bool IsFreeAttached = false;
+        [KSPField(isPersistant = true)] public bool IsLinked = false;
         [KSPField] public string RayCastOriginName = "strut";
+        [KSPField(isPersistant = true, guiActive = true)] public LinkType Strength = LinkType.None;
         protected Transform Strut;
         [KSPField] public string StrutName = "strut";
         protected float StrutX, StrutY;
+        public bool TargetHighlighterOverride = false;
         [KSPField(isPersistant = true, guiActive = false)] public string TargetId = Guid.Empty.ToString();
         private bool _checkForReDocking;
         private bool _checkTarget;
+        private Part _freeAttachPart;
+        private ModuleActiveStrutTargeter _halfWayPartner;
         private ConfigurableJoint _joint;
         private bool _jointCreated;
         private Transform _raycastOrigin;
-        private Part _freeAttachPart;
-        private bool _suppressEvents = false;
+        private bool _suppressEvents;
+        private ModuleActiveStrutTarget _target;
 
         [KSPField] private int _ticksToCheckForLinkAtStart = 100;
+
+        public ModuleActiveStrutTargeter HalfWayPartner
+        {
+            get
+            {
+                if (!this.HalfWayLink)
+                {
+                    return null;
+                }
+                return this._halfWayPartner ??
+                       (this._halfWayPartner = ASUtil.GetAllActiveStrutsModules(this.vessel).Where(m => m is ModuleActiveStrutTargeter && m.ID == new Guid(this.HalfWayPartnerId)).Select(m => m as ModuleActiveStrutTargeter).FirstOrDefault());
+            }
+            set
+            {
+                if (value == null)
+                {
+                    this.HalfWayLink = false;
+                    this._halfWayPartner = null;
+                    this.HalfWayPartnerId = Guid.Empty.ToString();
+                }
+                else
+                {
+                    this.HalfWayLink = true;
+                    this.HalfWayPartnerId = value.ID.ToString();
+                }
+            }
+        }
+
+        private bool HasTargetPartner
+        {
+            get { return this.Target != null && this.Target.HasPartner; }
+        }
 
         private bool IsPartnerTargeter
         {
             get { return this.Partner != null && this.Partner is ModuleActiveStrutTargeter; }
         }
 
-        public void SuppressAllEvents(bool flag)
-        {
-            this._suppressEvents = flag;
-        }
-
         protected override bool Linked
         {
-            get { return this.Mode == ASMode.Linked && ((this.Target != null && this.Target.ID != Guid.Empty) || IsFreeAttached); }
+            get { return this.Mode == ASMode.Linked && ((this.Target != null && this.Target.ID != Guid.Empty) || this.IsFreeAttached); }
         }
 
         public Vector3 RayCastOrigin
         {
             get { return this._raycastOrigin.position; }
         }
-
-        private ModuleActiveStrutTarget _target;
 
         public ModuleActiveStrutTarget Target
         {
@@ -94,12 +124,12 @@ namespace ActiveStruts
                 {
                     this._target = ASUtil.GetAllActiveStrutsModules(this.vessel).Where(m => m is ModuleActiveStrutTarget && m.ID == this.TargetID).Select(m => m as ModuleActiveStrutTarget).FirstOrDefault();
                 }
-                return _target;
+                return this._target;
             }
             set
             {
-                TargetID = value.ID;
-                _target = value;
+                this.TargetID = value.ID;
+                this._target = value;
             }
         }
 
@@ -120,6 +150,34 @@ namespace ActiveStruts
                 moduleDockingStrut.RevertGui();
             }
             this.Events["Abort"].active = this.Events["Abort"].guiActive = false;
+        }
+
+        public void AbortAttachRequest()
+        {
+            ConnectorManager.Deactivate();
+            OSD.Info("Free attachment aborted.");
+            this.IsFreeAttached = false;
+            this.IsLinked = false;
+            this.Strength = LinkType.None;
+            this.Mode = ASMode.Unlinked;
+            this.UpdateGui();
+        }
+
+        private void ActivateLineRender(bool listenForLeftClick = false)
+        {
+            ConnectorManager.Activate(this, this.part.Rigidbody.position, listenForLeftClick);
+        }
+
+        public void ClearStrut()
+        {
+            this.Strut.localScale = Vector3.zero;
+        }
+
+        private void ExtendHalf(Vector3 target, ModuleActiveStrutTargeter halfWayPartner)
+        {
+            this._setStrutEnd(target, true);
+            this.HalfWayPartner = halfWayPartner;
+            this.UpdateGui();
         }
 
         [KSPEvent(name = "FreeAttach", active = false, guiName = "Free Attachment", guiActiveUnfocused = true, unfocusedRange = 50)]
@@ -146,82 +204,8 @@ namespace ActiveStruts
                 OSD.Warn("Angle exceeds 180 degree!");
                 return;
             }
-            _createFreeAttachment(mpd);
+            this._createFreeAttachment(mpd);
             ConnectorManager.Deactivate();
-        }
-
-        public void AbortAttachRequest()
-        {
-            ConnectorManager.Deactivate();
-            OSD.Info("Free attachment aborted.");
-            this.IsFreeAttached = false;
-            this.IsLinked = false;
-            this.Strength = LinkType.None;
-            this.Mode = ASMode.Unlinked;
-            this.UpdateGui();
-        }
-
-        private void _createFreeAttachment(MousePositionData mpd)
-        {
-            this.IsFreeAttached = true;
-            this.FreeAttachDistance = mpd.DistanceFromReferenceOriginExact;
-            this.FreeAttachPosX = mpd.ExactHitPosition.x;
-            this.FreeAttachPosY = mpd.ExactHitPosition.y;
-            this.FreeAttachPosZ = mpd.ExactHitPosition.z;
-            this.IsLinked = true;
-            this.Mode = ASMode.Linked;
-            _freeAttachPart = mpd.HittedPart;
-            this._setStrutEnd(mpd.ExactHitPosition);
-            this.UpdateLink();
-            this.UpdateGui();
-        }
-
-        private void ActivateLineRender(bool listenForLeftClick = false)
-        {
-            ConnectorManager.Activate(this, this.part.Rigidbody.position, listenForLeftClick);
-        }
-
-        public void ClearStrut()
-        {
-            this.Strut.localScale = Vector3.zero;
-        }
-
-        private void ExtendHalf(Vector3 target, ModuleActiveStrutTargeter halfWayPartner)
-        {
-            this._setStrutEnd(target, true);
-            this.HalfWayPartner = halfWayPartner;
-            this.UpdateGui();
-        }
-
-        [KSPField(isPersistant = true)] public string HalfWayPartnerId;
-        private ModuleActiveStrutTargeter _halfWayPartner;
-        [KSPField(isPersistant = true)] public bool HalfWayLink = false;
-
-        public ModuleActiveStrutTargeter HalfWayPartner
-        {
-            get
-            {
-                if (!HalfWayLink)
-                {
-                    return null;
-                }
-                return this._halfWayPartner ??
-                       (this._halfWayPartner = ASUtil.GetAllActiveStrutsModules(this.vessel).Where(m => m is ModuleActiveStrutTargeter && m.ID == new Guid(this.HalfWayPartnerId)).Select(m => m as ModuleActiveStrutTargeter).FirstOrDefault());
-            }
-            set
-            {
-                if (value == null)
-                {
-                    this.HalfWayLink = false;
-                    _halfWayPartner = null;
-                    HalfWayPartnerId = Guid.Empty.ToString();
-                }
-                else
-                {
-                    this.HalfWayLink = true;
-                    HalfWayPartnerId = value.ID.ToString();
-                }
-            }
         }
 
         [KSPEvent(name = "Link", active = false, guiName = "Link", guiActiveUnfocused = true, unfocusedRange = 50)]
@@ -244,6 +228,11 @@ namespace ActiveStruts
             this.Mode = ASMode.Targeting;
             this.Events["Link"].active = this.Events["Link"].guiActive = false;
             ASUtil.HideEventsOnAllTargeters(this.ID);
+        }
+
+        public void MuteStrength()
+        {
+            this.Fields["Strength"].guiActive = false;
         }
 
         public override void OnStart(StartState state)
@@ -284,7 +273,7 @@ namespace ActiveStruts
             {
                 return;
             }
-            if (!this._checkTarget || IsFreeAttached)
+            if (!this._checkTarget || this.IsFreeAttached)
             {
                 return;
             }
@@ -297,16 +286,6 @@ namespace ActiveStruts
             {
                 this._checkTarget = false;
             }
-        }
-
-        public void ShowStrength()
-        {
-            this.Fields["Strength"].guiActive = true;
-        }
-
-        public void MuteStrength()
-        {
-            this.Fields["Strength"].guiActive = false;
         }
 
         public void SetTarget(ModuleActiveStrutTarget target, ASUtil.Tuple<bool, ModuleActiveStrutTargeter> halfWayData)
@@ -333,7 +312,7 @@ namespace ActiveStruts
 
         private void SetTargetAtLoad()
         {
-            if (IsFreeAttached)
+            if (this.IsFreeAttached)
             {
                 Debug.Log("setting free attached target at load");
                 this._checkTarget = this._tryHitFreeAttachmentPoint();
@@ -349,7 +328,7 @@ namespace ActiveStruts
                     Debug.Log("target set");
                 }
             }
-            if (_checkTarget)
+            if (this._checkTarget)
             {
                 return;
             }
@@ -360,24 +339,73 @@ namespace ActiveStruts
             this.Mode = ASMode.Unlinked;
         }
 
+        public void SetTargetHighlighterOverride(bool overrideFlag)
+        {
+            this.TargetHighlighterOverride = overrideFlag;
+        }
+
         public void ShareState(ASMode mode)
         {
             this.StateManager.SetPartnerMode(mode);
         }
 
+        public void ShowStrength()
+        {
+            this.Fields["Strength"].guiActive = true;
+        }
+
+        public void SuppressAllEvents(bool flag)
+        {
+            this._suppressEvents = flag;
+        }
+
+        [KSPEvent(name = "ToggleLink", active = false, guiName = "Toggle Link")]
+        public void ToggleLink()
+        {
+            if (this.Linked)
+            {
+                this.Unlink();
+                return;
+            }
+            if (this.HalfWayLink)
+            {
+                if (this.HalfWayPartner != null && this.HalfWayPartner.TargetID == this.ID)
+                {
+                    this.HalfWayPartner.ToggleLink();
+                }
+                return;
+            }
+            if (this.Target == null)
+            {
+                return;
+            }
+            if (!this._checkPossibleTarget())
+            {
+                OSD.Warn("Can't reconnect to target.");
+                return;
+            }
+            this.SetTarget(this.Target, this.Target.HasPartner ? ASUtil.Tuple.New(true, this.Target.GetPartner()) : ASUtil.Tuple.New<bool, ModuleActiveStrutTargeter>(false, null));
+        }
+
+        [KSPAction("ToggleLinkAction", KSPActionGroup.None, guiName = "Toggle Link")]
+        public void ToggleLinkAction(KSPActionParam param)
+        {
+            this.ToggleLink();
+        }
+
         [KSPEvent(name = "Unlink", active = false, guiName = "Unlink", guiActiveUnfocused = true, unfocusedRange = 50)]
         public void Unlink()
         {
-            if (IsFreeAttached)
+            if (this.IsFreeAttached)
             {
-                IsFreeAttached = false;
-                Strength = LinkType.None;
+                this.IsFreeAttached = false;
+                this.Strength = LinkType.None;
             }
             else
             {
-                if (HalfWayLink)
+                if (this.HalfWayLink)
                 {
-                    HalfWayPartner.Unlink();
+                    this.HalfWayPartner.Unlink();
                 }
                 else
                 {
@@ -393,41 +421,10 @@ namespace ActiveStruts
             OSD.Success("Unlinked");
         }
 
-        [KSPAction("ToggleLinkAction", KSPActionGroup.None, guiName = "Toggle Link")]
-        public void ToggleLinkAction(KSPActionParam param)
-        {
-            this.ToggleLink();
-        }
-
-        [KSPEvent(name = "ToggleLink", active = false, guiName = "Toggle Link")]
-        public void ToggleLink()
-        {
-            if (Linked)
-            {
-                this.Unlink();
-                return;
-            }
-            if (HalfWayLink)
-            {
-                HalfWayPartner.ToggleLink();
-                return;
-            }
-            if (this.Target == null)
-            {
-                return;
-            }
-            if (!this._checkPossibleTarget())
-            {
-                OSD.Warn("Can't reconnect to target.");
-                return;
-            }
-            this.SetTarget(this.Target, this.Target.HasPartner ? ASUtil.Tuple.New(true, this.Target.GetPartner()) : ASUtil.Tuple.New<bool, ModuleActiveStrutTargeter>(false, null));
-        }
-
         [KSPAction("UnlinkAction", KSPActionGroup.None, guiName = "Unlink")]
         public void UnlinkAction(KSPActionParam param)
         {
-            if (this.Mode == ASMode.Linked || HalfWayLink)
+            if (this.Mode == ASMode.Linked || this.HalfWayLink)
             {
                 this.Unlink();
             }
@@ -474,36 +471,22 @@ namespace ActiveStruts
                         this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = true;
                         this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
                     }
-                    if (HalfWayLink)
+                    if (this.HalfWayLink)
                     {
                         this.Events["Unlink"].active = this.Events["Unlink"].guiActive = true;
                         this.Events["Link"].active = this.Events["Link"].guiActive = false;
-                        this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
+                        if (this.HalfWayPartner != null && this.HalfWayPartner.TargetID == this.ID)
+                        {
+                            this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
+                        }
+                        else
+                        {
+                            this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
+                        }
                     }
                 }
                     break;
             }
-        }
-
-        private bool _tryHitFreeAttachmentPoint()
-        {
-            const float distanceTolerance = 0.05f;
-            if (!this.IsFreeAttached)
-            {
-                return false;
-            }
-            RaycastHit info;
-            var start = this.RayCastOrigin;
-            var dir = (new Vector3(FreeAttachPosX, FreeAttachPosY, FreeAttachPosZ) - start).normalized;
-            var hit = Physics.Raycast(new Ray(start, dir), out info, FreeAttachDistance + distanceTolerance);
-            if (!hit)
-            {
-                return false;
-            }
-            var hittedPart = ASUtil.PartFromHit(info);
-            _freeAttachPart = hittedPart;
-            var hitDistFlag = FreeAttachDistance + distanceTolerance >= info.distance && FreeAttachDistance - distanceTolerance <= info.distance;
-            return hittedPart.vessel == this.vessel && hitDistFlag;
         }
 
         public void UpdateLink()
@@ -514,7 +497,7 @@ namespace ActiveStruts
                 {
                     if (this.IsFreeAttached)
                     {
-                        if (_freeAttachPart.vessel != this.vessel)
+                        if (this._freeAttachPart.vessel != this.vessel)
                         {
                             this.Mode = ASMode.Unlinked;
                             this.Events["Unlink"].guiActive = false;
@@ -557,15 +540,15 @@ namespace ActiveStruts
                 }
                 if (this.Linked)
                 {
-                    if (IsFreeAttached ? _freeAttachPart == null : this.Target == null)
+                    if (this.IsFreeAttached ? this._freeAttachPart == null : this.Target == null)
                     {
                         OSD.Warn(this.ID + " cant't find its target");
                         return;
                     }
                     this._joint = this.part.rigidbody.gameObject.AddComponent<ConfigurableJoint>();
-                    if (IsFreeAttached)
+                    if (this.IsFreeAttached)
                     {
-                        this._joint.connectedBody = _freeAttachPart.rigidbody;
+                        this._joint.connectedBody = this._freeAttachPart.rigidbody;
                     }
                     else
                     {
@@ -575,7 +558,7 @@ namespace ActiveStruts
                             this._joint.connectedBody = moduleActiveStrutTarget.part.rigidbody;
                         }
                     }
-                    this._joint.breakForce = this._joint.breakTorque = _determineJointStrength();
+                    this._joint.breakForce = this._joint.breakTorque = this._determineJointStrength();
                     this._joint.xMotion = ConfigurableJointMotion.Locked;
                     this._joint.yMotion = ConfigurableJointMotion.Locked;
                     this._joint.zMotion = ConfigurableJointMotion.Locked;
@@ -597,32 +580,6 @@ namespace ActiveStruts
                 OSD.Error("Sorry, something unexpected happened!");
                 Debug.Log("[AS][EX] " + exception.Message + " " + exception.StackTrace);
             }
-        }
-
-        private float _determineJointStrength()
-        {
-            if (!this.Linked)
-            {
-                this.Strength = LinkType.None;
-                return 0;
-            }
-            if (IsFreeAttached)
-            {
-                this.Strength = LinkType.Weak;
-                return WeakStrength;
-            }
-            if (this.HasTargetPartner)
-            {
-                this.Strength = LinkType.Maximal;
-                return MaximalStrength;
-            }
-            this.Strength = LinkType.Normal;
-            return NormalStrength;
-        }
-
-        private bool HasTargetPartner
-        {
-            get { return this.Target != null && this.Target.HasPartner; }
         }
 
         private ASUtil.Tuple<bool, Single> _checkDistance(PartModule target)
@@ -662,6 +619,42 @@ namespace ActiveStruts
             }
         }
 
+        private void _createFreeAttachment(MousePositionData mpd)
+        {
+            this.IsFreeAttached = true;
+            this.FreeAttachDistance = mpd.DistanceFromReferenceOriginExact;
+            this.FreeAttachPosX = mpd.ExactHitPosition.x;
+            this.FreeAttachPosY = mpd.ExactHitPosition.y;
+            this.FreeAttachPosZ = mpd.ExactHitPosition.z;
+            this.IsLinked = true;
+            this.Mode = ASMode.Linked;
+            this._freeAttachPart = mpd.HittedPart;
+            this._setStrutEnd(mpd.ExactHitPosition);
+            this.UpdateLink();
+            this.UpdateGui();
+        }
+
+        private float _determineJointStrength()
+        {
+            if (!this.Linked)
+            {
+                this.Strength = LinkType.None;
+                return 0;
+            }
+            if (this.IsFreeAttached)
+            {
+                this.Strength = LinkType.Weak;
+                return WeakStrength;
+            }
+            if (this.HasTargetPartner)
+            {
+                this.Strength = LinkType.Maximal;
+                return MaximalStrength;
+            }
+            this.Strength = LinkType.Normal;
+            return NormalStrength;
+        }
+
         private void _setPossibleTarget(ModuleActiveStrutTarget target)
         {
             var distanceTestResult = this._checkDistance(target);
@@ -690,6 +683,27 @@ namespace ActiveStruts
             this.Strut.localScale = new Vector3(this.StrutX, this.StrutY, 1);
             var distance = -1*Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(position))*(halfWay ? 0.5f : 1.0f);
             this.Strut.localScale = new Vector3(this.StrutX, this.StrutY, distance);
+        }
+
+        private bool _tryHitFreeAttachmentPoint()
+        {
+            const float distanceTolerance = 0.05f;
+            if (!this.IsFreeAttached)
+            {
+                return false;
+            }
+            RaycastHit info;
+            var start = this.RayCastOrigin;
+            var dir = (new Vector3(this.FreeAttachPosX, this.FreeAttachPosY, this.FreeAttachPosZ) - start).normalized;
+            var hit = Physics.Raycast(new Ray(start, dir), out info, this.FreeAttachDistance + distanceTolerance);
+            if (!hit)
+            {
+                return false;
+            }
+            var hittedPart = ASUtil.PartFromHit(info);
+            this._freeAttachPart = hittedPart;
+            var hitDistFlag = this.FreeAttachDistance + distanceTolerance >= info.distance && this.FreeAttachDistance - distanceTolerance <= info.distance;
+            return hittedPart.vessel == this.vessel && hitDistFlag;
         }
 
         private ASUtil.Tuple<bool, Part> _tryPartHit(ModuleActiveStrutTarget target)

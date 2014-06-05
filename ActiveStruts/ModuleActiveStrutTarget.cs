@@ -14,6 +14,15 @@ namespace ActiveStruts
             get { return this.Mode == ASMode.Linked; }
         }
 
+        public ModuleActiveStrutTargeter GetPartner()
+        {
+            if (this.HasPartner)
+            {
+                return this.Partner as ModuleActiveStrutTargeter;
+            }
+            return null;
+        }
+
         public override void OnStart(StartState state)
         {
             if (state == StartState.Editor)
@@ -61,18 +70,10 @@ namespace ActiveStruts
                 if (moduleActiveStrutTargeter != null)
                 {
                     moduleActiveStrutTargeter.MuteStrength();
+                    moduleActiveStrutTargeter.ShareState(this.Mode);
                 }
             }
             this.UpdateGui();
-        }
-
-        public ModuleActiveStrutTargeter GetPartner()
-        {
-            if (this.HasPartner)
-            {
-                return this.Partner as ModuleActiveStrutTargeter;
-            }
-            return null;
         }
 
         public void SetErrorMessage(string errMsg)
@@ -90,6 +91,11 @@ namespace ActiveStruts
         {
             this.Mode = ASMode.Target;
             this._targeter = targeter;
+            var moduleActiveStrutTargeter = this.Partner as ModuleActiveStrutTargeter;
+            if (moduleActiveStrutTargeter == null || moduleActiveStrutTargeter.TargetHighlighterOverride)
+            {
+                return;
+            }
             this.part.SetHighlightColor(Color.green);
             this.part.SetHighlight(true);
         }
@@ -117,8 +123,12 @@ namespace ActiveStruts
                 case ASMode.Target:
                 {
                     this.Events["SetAsTarget"].active = this.Events["SetAsTarget"].guiActive = true;
-                    this.part.SetHighlightColor(Color.green);
-                    this.part.SetHighlight(true);
+                    var moduleActiveStrutTargeter = this.Partner as ModuleActiveStrutTargeter;
+                    if (moduleActiveStrutTargeter != null && (!this.HasPartner || (this.HasPartner && !moduleActiveStrutTargeter.TargetHighlighterOverride)))
+                    {
+                        this.part.SetHighlightColor(Color.green);
+                        this.part.SetHighlight(true);
+                    }
                 }
                     break;
             }
@@ -128,7 +138,11 @@ namespace ActiveStruts
             }
             if (this.Mode != ASMode.Target)
             {
-                this.part.SetHighlight(false);
+                var moduleActiveStrutTargeter = this.Partner as ModuleActiveStrutTargeter;
+                if (moduleActiveStrutTargeter != null && (!this.HasPartner || (this.HasPartner && !moduleActiveStrutTargeter.TargetHighlighterOverride)))
+                {
+                    this.part.SetHighlight(false);
+                }
             }
             this.Error = ErrorNone;
             this.Fields["Error"].guiActive = false;
