@@ -1,15 +1,17 @@
-﻿using UnityEngine;
+﻿using ActiveStruts.Modules;
+using ActiveStruts.Util;
+using UnityEngine;
 
-namespace ActiveStruts
+namespace ActiveStruts.Addons
 {
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class ActiveStrutsAddon : MonoBehaviour
     {
         private static GameObject _connector;
+        private bool _resetAllHighlighting;
         public static ModuleActiveStrut CurrentTargeter { get; set; }
         public static AddonMode Mode { get; set; }
         public static Vector3 Origin { get; set; }
-        private bool _resetAllHighlighting = false;
 
         //must not be static
         private void ActionMenuClosed(Part data)
@@ -18,7 +20,7 @@ namespace ActiveStruts
             {
                 return;
             }
-            var module = data.Modules[Config.ModuleName] as ModuleActiveStrut;
+            var module = data.Modules[ASConfigAddon.Config.ModuleName] as ModuleActiveStrut;
             if (module == null)
             {
                 return;
@@ -40,7 +42,7 @@ namespace ActiveStruts
             {
                 return;
             }
-            var module = data.Modules[Config.ModuleName] as ModuleActiveStrut;
+            var module = data.Modules[ASConfigAddon.Config.ModuleName] as ModuleActiveStrut;
             if (module == null)
             {
                 return;
@@ -59,24 +61,24 @@ namespace ActiveStruts
 
         private static bool IsValidPosition(RaycastResult raycast)
         {
-            var valid = raycast.HitResult && raycast.HittedPart != null && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= Config.MaxDistance && raycast.RayAngle <= Config.MaxAngle;
+            var valid = raycast.HitResult && raycast.HittedPart != null && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= ASConfigAddon.Config.MaxDistance && raycast.RayAngle <= ASConfigAddon.Config.MaxAngle;
             switch (Mode)
             {
                 case AddonMode.Link:
                 {
-                    if (raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(Config.ModuleName))
+                    if (raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(ASConfigAddon.Config.ModuleName))
                     {
-                        var moduleActiveStrut = raycast.HittedPart.Modules[Config.ModuleName] as ModuleActiveStrut;
+                        var moduleActiveStrut = raycast.HittedPart.Modules[ASConfigAddon.Config.ModuleName] as ModuleActiveStrut;
                         if (moduleActiveStrut != null)
                         {
-                            valid = valid && raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(Config.ModuleName) && moduleActiveStrut.IsConnectionFree;
+                            valid = valid && raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(ASConfigAddon.Config.ModuleName) && moduleActiveStrut.IsConnectionFree;
                         }
                     }
                 }
                     break;
                 case AddonMode.FreeAttach:
                 {
-                    valid = valid && !raycast.HittedPart.Modules.Contains(Config.ModuleName);
+                    valid = valid && !raycast.HittedPart.Modules.Contains(ASConfigAddon.Config.ModuleName);
                 }
                     break;
             }
@@ -102,10 +104,10 @@ namespace ActiveStruts
             _connector = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             _connector.name = "ASConn";
             DestroyImmediate(_connector.collider);
-            _connector.transform.localScale = new Vector3(Config.ConnectorDimension, Config.ConnectorDimension, Config.ConnectorDimension);
+            _connector.transform.localScale = new Vector3((float) ASConfigAddon.Config.ConnectorDimension, (float) ASConfigAddon.Config.ConnectorDimension, (float) ASConfigAddon.Config.ConnectorDimension);
             var mr = _connector.GetComponent<MeshRenderer>();
             mr.name = "ASConn";
-            mr.material = new Material(Shader.Find("Transparent/Diffuse")) { color = Util.MakeColorTransparent(Color.green) };
+            mr.material = new Material(Shader.Find("Transparent/Diffuse")) {color = Util.Util.MakeColorTransparent(Color.green)};
             _connector.SetActive(false);
         }
 
@@ -113,9 +115,9 @@ namespace ActiveStruts
         {
             if (!HighLogic.LoadedSceneIsFlight || Mode == AddonMode.None || CurrentTargeter == null)
             {
-                if (_resetAllHighlighting)
+                if (this._resetAllHighlighting)
                 {
-                    _resetAllHighlighting = false;
+                    this._resetAllHighlighting = false;
                     foreach (var moduleActiveStrut in FlightGlobals.ActiveVessel.GetAllActiveStruts())
                     {
                         moduleActiveStrut.part.SetHighlightDefault();
@@ -124,10 +126,10 @@ namespace ActiveStruts
                 _connector.SetActive(false);
                 return;
             }
-            _resetAllHighlighting = true;
-            var mp = Util.GetMouseWorldPosition();
+            this._resetAllHighlighting = true;
+            var mp = Util.Util.GetMouseWorldPosition();
             _pointToMousePosition(mp);
-            var raycast = Util.PerformRaycast(CurrentTargeter.Origin.position, mp, CurrentTargeter.Origin.right);
+            var raycast = Util.Util.PerformRaycast(CurrentTargeter.Origin.position, mp, CurrentTargeter.Origin.right);
             if (!raycast.HitResult || !raycast.HitCurrentVessel)
             {
                 if (Mode == AddonMode.Link && Input.GetKeyDown(KeyCode.Mouse0))
@@ -149,14 +151,14 @@ namespace ActiveStruts
 
         private static bool _checkForModule(Part part)
         {
-            return part.Modules.Contains(Config.ModuleName);
+            return part.Modules.Contains(ASConfigAddon.Config.ModuleName);
         }
 
         private static bool _determineColor(Vector3 mp, RaycastResult raycast)
         {
             var validPosition = IsValidPosition(raycast);
             var mr = _connector.GetComponent<MeshRenderer>();
-            mr.material.color = Util.MakeColorTransparent(validPosition ? Color.green : Color.red);
+            mr.material.color = Util.Util.MakeColorTransparent(validPosition ? Color.green : Color.red);
             return validPosition;
         }
 
@@ -184,7 +186,7 @@ namespace ActiveStruts
                     {
                         if (validPos)
                         {
-                            var moduleActiveStrut = raycast.HittedPart.Modules[Config.ModuleName] as ModuleActiveStrut;
+                            var moduleActiveStrut = raycast.HittedPart.Modules[ASConfigAddon.Config.ModuleName] as ModuleActiveStrut;
                             if (moduleActiveStrut != null)
                             {
                                 moduleActiveStrut.SetAsTarget();

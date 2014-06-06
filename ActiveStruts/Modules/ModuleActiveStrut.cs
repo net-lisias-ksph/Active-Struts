@@ -23,14 +23,17 @@ THE SOFTWARE.
 
 using System;
 using System.Linq;
+using ActiveStruts.Addons;
+using ActiveStruts.Util;
 using UnityEngine;
 
-namespace ActiveStruts
+namespace ActiveStruts.Modules
 {
     public class ModuleActiveStrut : PartModule
     {
         [KSPField(isPersistant = true)] public float FreeAttachDistance = 0.0f;
         [KSPField(isPersistant = true)] public string FreeAttachPointString = "0.0 0.0 0.0";
+        [KSPField(isPersistant = true)] public string FreeAttachTargetLocalVectorString = "0.0 0.0 0.0";
         [KSPField(isPersistant = true)] public string Id = Guid.Empty.ToString();
         [KSPField(isPersistant = true)] public bool IsConnectionOrigin = false;
         [KSPField(isPersistant = true)] public bool IsFreeAttached = false;
@@ -50,23 +53,9 @@ namespace ActiveStruts
         private ConfigurableJoint _joint;
         private LinkType _linkType;
         private Mode _mode = Mode.Undefined;
-        private int _ticksForDelayedStart;
-        [KSPField(isPersistant = true)]
-        public string FreeAttachTargetLocalVectorString = "0.0 0.0 0.0";
 
-        public Vector3 FreeAttachTargetLocalVector
-        {
-            get
-            {
-                var coords = this.FreeAttachTargetLocalVectorString.Split(' ').Select(float.Parse).ToArray();
-                return new Vector3(coords[0], coords[1], coords[2]);
-            }
-            set
-            {
-                this.FreeAttachTargetLocalVectorString = string.Format("{0} {1} {2}", value.x, value.y, value.z);
-            }
-        }
         private int _strutRealignCounter;
+        private int _ticksForDelayedStart;
 
         private Part FreeAttachPart
         {
@@ -93,6 +82,16 @@ namespace ActiveStruts
                 return new Vector3(coords[0], coords[1], coords[2]);
             }
             set { this.FreeAttachPointString = string.Format("{0} {1} {2}", value.x, value.y, value.z); }
+        }
+
+        public Vector3 FreeAttachTargetLocalVector
+        {
+            get
+            {
+                var coords = this.FreeAttachTargetLocalVectorString.Split(' ').Select(float.Parse).ToArray();
+                return new Vector3(coords[0], coords[1], coords[2]);
+            }
+            set { this.FreeAttachTargetLocalVectorString = string.Format("{0} {1} {2}", value.x, value.y, value.z); }
         }
 
         public Guid ID
@@ -141,7 +140,7 @@ namespace ActiveStruts
         public void AbortLink()
         {
             this.Mode = Mode.Unlinked;
-            Util.ResetAllFromTargeting();
+            Util.Util.ResetAllFromTargeting();
             ActiveStrutsAddon.Mode = AddonMode.None;
             OSD.Info("Link aborted.");
             this.UpdateGui();
@@ -159,7 +158,7 @@ namespace ActiveStruts
             this._joint.angularYMotion = ConfigurableJointMotion.Locked;
             this._joint.angularZMotion = ConfigurableJointMotion.Locked;
             this.LinkType = type;
-            if (!IsFreeAttached)
+            if (!this.IsFreeAttached)
             {
                 this.Target.LinkType = type;
             }
@@ -170,11 +169,11 @@ namespace ActiveStruts
             var strut = this.Strut;
             strut.LookAt(target);
             strut.localScale = new Vector3(1, 1, 1);
-            var distance = -1 * Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(target)) * distancePercent;
+            var distance = -1*Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(target))*distancePercent;
             Debug.Log("[AS] original strut distance: " + distance);
             if (this.IsFreeAttached)
             {
-                distance -= Config.FreeAttachStrutExtension;
+                distance -= (float) ASConfigAddon.Config.FreeAttachStrutExtension;
             }
             this.Strut.localScale = new Vector3(1, 1, distance);
         }
@@ -194,7 +193,7 @@ namespace ActiveStruts
         [KSPEvent(name = "FreeAttach", active = false, guiName = "FreeAttach Link", guiActiveUnfocused = true, unfocusedRange = 50)]
         public void FreeAttach()
         {
-            OSD.Info(Config.FreeAttachHelpText);
+            OSD.Info(ASConfigAddon.Config.FreeAttachHelpText);
             ActiveStrutsAddon.CurrentTargeter = this;
             ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
         }
@@ -210,7 +209,7 @@ namespace ActiveStruts
             }
             ActiveStrutsAddon.Mode = AddonMode.Link;
             ActiveStrutsAddon.CurrentTargeter = this;
-            OSD.Info(Config.LinkHelpText, 5);
+            OSD.Info(ASConfigAddon.Config.LinkHelpText, 5);
             this.UpdateGui();
         }
 
@@ -228,8 +227,8 @@ namespace ActiveStruts
                 return;
             }
             this._delayedStartFlag = true;
-            this._ticksForDelayedStart = Config.StartDelay;
-            this._strutRealignCounter = Config.StrutRealignInterval;
+            this._ticksForDelayedStart = ASConfigAddon.Config.StartDelay;
+            this._strutRealignCounter = ASConfigAddon.Config.StrutRealignInterval;
         }
 
         public override void OnUpdate()
@@ -241,14 +240,14 @@ namespace ActiveStruts
             }
             if (this.IsLinked)
             {
-                if (_strutRealignCounter > 0)
+                if (this._strutRealignCounter > 0)
                 {
-                    _strutRealignCounter--;
+                    this._strutRealignCounter--;
                 }
                 else
                 {
-                    _strutRealignCounter = Config.StrutRealignInterval;
-                    _realignStrut();
+                    this._strutRealignCounter = ASConfigAddon.Config.StrutRealignInterval;
+                    this._realignStrut();
                 }
             }
             if (this.Mode == Mode.Unlinked || this.Mode == Mode.Target || this.Mode == Mode.Targeting)
@@ -295,34 +294,6 @@ namespace ActiveStruts
                     this.Mode = Mode.Unlinked;
                 }
                 this.UpdateGui();
-            }
-        }
-
-        private void _realignStrut()
-        {
-            if (this.IsFreeAttached)
-            {
-                var targetPos = Util.GetNewWorldPosForFreeAttachTarget(this._freeAttachPart, this.FreeAttachTargetLocalVector);
-                this.DestroyStrut();
-                this.CreateStrut(targetPos);
-            }
-            else if (!this.IsTargetOnly)
-            {
-                if (this.Target == null)
-                {
-                    return;
-                }
-                this.DestroyStrut();
-                if (this.Target.IsTargetOnly)
-                {
-                    this.CreateStrut(this.Target.Origin.position);
-                }
-                else
-                {
-                    this.Target.DestroyStrut();
-                    this.CreateStrut(this.Target.Origin.position, 0.5f);
-                    this.Target.CreateStrut(this.Origin.position, 0.5f);
-                }
             }
         }
 
@@ -409,7 +380,7 @@ namespace ActiveStruts
             this.CreateJoint(this.part.rigidbody, target.part.rigidbody, target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal);
             this.CreateStrut(target.Origin.position, target.IsTargetOnly ? 1 : 0.5f);
             this.IsConnectionOrigin = true;
-            Util.ResetAllFromTargeting();
+            Util.Util.ResetAllFromTargeting();
             OSD.Success("Link established!");
             ActiveStrutsAddon.Mode = AddonMode.None;
             this.UpdateGui();
@@ -608,6 +579,34 @@ namespace ActiveStruts
                 this.Mode = Mode.Unlinked;
             }
             this.UpdateGui();
+        }
+
+        private void _realignStrut()
+        {
+            if (this.IsFreeAttached)
+            {
+                var targetPos = Util.Util.GetNewWorldPosForFreeAttachTarget(this._freeAttachPart, this.FreeAttachTargetLocalVector);
+                this.DestroyStrut();
+                this.CreateStrut(targetPos);
+            }
+            else if (!this.IsTargetOnly)
+            {
+                if (this.Target == null)
+                {
+                    return;
+                }
+                this.DestroyStrut();
+                if (this.Target.IsTargetOnly)
+                {
+                    this.CreateStrut(this.Target.Origin.position);
+                }
+                else
+                {
+                    this.Target.DestroyStrut();
+                    this.CreateStrut(this.Target.Origin.position, 0.5f);
+                    this.Target.CreateStrut(this.Origin.position, 0.5f);
+                }
+            }
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿namespace ActiveStruts
+﻿namespace ActiveStruts.Util
 {
     public enum LinkType
     {
