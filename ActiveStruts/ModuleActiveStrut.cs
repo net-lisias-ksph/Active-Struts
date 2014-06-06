@@ -434,6 +434,10 @@ namespace ActiveStruts
                         this.Events["AbortLink"].active = this.Events["AbortLink"].guiActive = false;
                         if (this.IsFreeAttached)
                         {
+                            this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
+                        }
+                        else
+                        {
                             this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
                         }
                     }
