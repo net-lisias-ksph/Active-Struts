@@ -10,7 +10,7 @@ namespace ActiveStruts
         [KSPField(isPersistant = true)] public string FreeAttachPointString = "0.0 0.0 0.0";
         [KSPField(isPersistant = true, guiActive = true)] public string Id = Guid.Empty.ToString();
         [KSPField(isPersistant = true)] public bool IsConnectionOrigin = false;
-        [KSPField(isPersistant = true)] public bool IsFreeFormAttached = false;
+        [KSPField(isPersistant = true)] public bool IsFreeAttached = false;
         [KSPField(isPersistant = true)] public bool IsHalfWayExtended = false;
         [KSPField(isPersistant = true)] public bool IsLinked = false;
         [KSPField(isPersistant = true)] public bool IsTargetOnly = false;
@@ -176,8 +176,24 @@ namespace ActiveStruts
             this.Origin = this.part.transform;
             if (state == StartState.Editor)
             {
+                _delayedStartFlag = false;
                 return;
             }
+            _delayedStartFlag = true;
+            _ticksForDelayedStart = 100;
+        }
+
+        private int _ticksForDelayedStart;
+        private bool _delayedStartFlag;
+
+        private void _delayedStart()
+        {
+            if (_ticksForDelayedStart > 0)
+            {
+                _ticksForDelayedStart--;
+                return;
+            }
+            _delayedStartFlag = false;
             if (this.Id == Guid.Empty.ToString())
             {
                 this.Id = Guid.NewGuid().ToString();
@@ -202,6 +218,11 @@ namespace ActiveStruts
 
         public override void OnUpdate()
         {
+            if (_delayedStartFlag)
+            {
+                this._delayedStart();
+                return;
+            }
             if (this.Mode == Mode.Unlinked || this.Mode == Mode.Target || this.Mode == Mode.Targeting)
             {
                 return;
@@ -217,7 +238,7 @@ namespace ActiveStruts
             }
             if (this.Mode == Mode.Linked)
             {
-                if (this.IsFreeFormAttached)
+                if (this.IsFreeAttached)
                 {
                     if (this.FreeAttachPart != null && this.FreeAttachPart.vessel == this.vessel)
                     {
@@ -253,7 +274,7 @@ namespace ActiveStruts
         {
             this.Mode = Mode.Linked;
             this.IsLinked = true;
-            this.IsFreeFormAttached = true;
+            this.IsFreeAttached = true;
             this.IsConnectionOrigin = true;
             this.CreateJoint(this.part.rigidbody, hittedPart.rigidbody, LinkType.Weak);
             this.CreateStrut(hitPosition);
@@ -268,15 +289,15 @@ namespace ActiveStruts
 
         private void Reconnect()
         {
-            if (this.IsFreeFormAttached)
+            if (this.IsFreeAttached)
             {
                 var rayRes = this.CheckFreeAttachPoint();
                 if (!rayRes.HitResult)
                 {
-                    IsFreeFormAttached = false;
+                    this.IsFreeAttached = false;
                     return;
                 }
-                this.PlaceFreeAttach(rayRes.TargetPart,FreeAttachPoint,this.FreeAttachDistance);
+                this.PlaceFreeAttach(rayRes.TargetPart, FreeAttachPoint, this.FreeAttachDistance);
                 return;
             }
             if (this.IsConnectionOrigin)
@@ -293,6 +314,7 @@ namespace ActiveStruts
                     }
                     this.CreateJoint(this.part.rigidbody, this.Target.part.rigidbody, LinkType.Maximal);
                     this.Mode = Mode.Linked;
+                    this.IsLinked = true;
                 }
             }
             else
@@ -301,8 +323,10 @@ namespace ActiveStruts
                 {
                     this.CreateStrut(this.Targeter.Origin.position, 0.5f);
                     this.Mode = Mode.Linked;
+                    this.IsLinked = true;
                 }
             }
+            this.UpdateGui();
         }
 
         [KSPEvent(name = "SetAsTarget", active = false, guiName = "Set as Target", guiActiveUnfocused = true, unfocusedRange = 50)]
@@ -389,14 +413,14 @@ namespace ActiveStruts
         {
             if (!this.IsTargetOnly && this.Target != null)
             {
-                if (this.IsConnectionOrigin && !IsFreeFormAttached)
+                if (this.IsConnectionOrigin && !this.IsFreeAttached)
                 {
                     this.Target.Unlink();
                     OSD.Success("Unlinked!");
                 }
-                if (IsFreeFormAttached)
+                if (this.IsFreeAttached)
                 {
-                    this.IsFreeFormAttached = false;
+                    this.IsFreeAttached = false;
                 }
                 this.Mode = Mode.Unlinked;
                 this.IsLinked = false;
@@ -435,7 +459,10 @@ namespace ActiveStruts
                     {
                         this.Events["Unlink"].active = this.Events["Unlink"].guiActive = true;
                         this.Events["AbortLink"].active = this.Events["AbortLink"].guiActive = false;
-                        this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
+                        if (this.IsFreeAttached)
+                        {
+                            this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
+                        }
                     }
                     else
                     {

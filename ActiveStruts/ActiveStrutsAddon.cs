@@ -30,7 +30,7 @@ namespace ActiveStruts
             {
                 module.Targeter.part.SetHighlightDefault();
             }
-        }        
+        }
 
         //must not be static
         private void ActionMenuCreated(Part data)
@@ -58,21 +58,24 @@ namespace ActiveStruts
 
         private static bool IsValidPosition(RaycastResult raycast)
         {
-            var valid = raycast.HitResult && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= Config.MaxDistance && raycast.RayAngle <= Config.MaxAngle;
+            var valid = raycast.HitResult && raycast.HittedPart != null && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= Config.MaxDistance && raycast.RayAngle <= Config.MaxAngle;
             switch (Mode)
             {
                 case AddonMode.Link:
                 {
-                    var moduleActiveStrut = raycast.HittedPart.Modules[Config.ModuleName] as ModuleActiveStrut;
-                    if (moduleActiveStrut != null)
+                    if (raycast.HittedPart != null)
                     {
-                        valid = valid && raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(Config.ModuleName) && moduleActiveStrut.IsConnectionFree;
+                        var moduleActiveStrut = raycast.HittedPart.Modules[Config.ModuleName] as ModuleActiveStrut;
+                        if (moduleActiveStrut != null)
+                        {
+                            valid = valid && raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(Config.ModuleName) && moduleActiveStrut.IsConnectionFree;
+                        }
                     }
                 }
                     break;
                 case AddonMode.FreeAttach:
                 {
-                    valid = valid && raycast.HittedPart != null && !raycast.HittedPart.Modules.Contains(Config.ModuleName);
+                    valid = valid && !raycast.HittedPart.Modules.Contains(Config.ModuleName);
                 }
                     break;
             }
@@ -183,8 +186,10 @@ namespace ActiveStruts
                 {
                     if (Input.GetKeyDown(KeyCode.Mouse0))
                     {
+                        Debug.Log("[AS] user requests free attach link on " + validPos + " position");
                         if (validPos)
                         {
+                            Debug.Log("[AS] creating free attach link");
                             CurrentTargeter.PlaceFreeAttach(raycast.HittedPart, mp, raycast.DistanceFromOrigin);
                         }
                     }
