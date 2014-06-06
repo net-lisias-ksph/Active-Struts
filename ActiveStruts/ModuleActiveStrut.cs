@@ -120,7 +120,10 @@ namespace ActiveStruts
             this._joint.angularYMotion = ConfigurableJointMotion.Locked;
             this._joint.angularZMotion = ConfigurableJointMotion.Locked;
             this.LinkType = type;
-            this.Target.LinkType = type;
+            if (!IsFreeAttached)
+            {
+                this.Target.LinkType = type;
+            }
         }
 
         public void CreateStrut(Vector3 target, float distancePercent = 1)
@@ -149,7 +152,7 @@ namespace ActiveStruts
         {
             OSD.Info(Config.FreeAttachHelpText);
             ActiveStrutsAddon.CurrentTargeter = this;
-            ActiveStrutsAddon.Mode = AddonMode.FreeAttach;           
+            ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
         }
 
         [KSPEvent(name = "Link", active = false, guiName = "Link", guiActiveUnfocused = true, unfocusedRange = 50)]
@@ -300,7 +303,6 @@ namespace ActiveStruts
         [KSPEvent(name = "SetAsTarget", active = false, guiName = "Set as Target", guiActiveUnfocused = true, unfocusedRange = 50)]
         public void SetAsTarget()
         {
-            this.Targeter.SetTarget(this);
             this.IsLinked = true;
             this.part.SetHighlightDefault();
             this.Mode = Mode.Linked;
@@ -309,6 +311,7 @@ namespace ActiveStruts
             {
                 this.CreateStrut(this.Targeter.Origin.position, 0.5f);
             }
+            this.Targeter.SetTarget(this);
             this.UpdateGui();
         }
 
