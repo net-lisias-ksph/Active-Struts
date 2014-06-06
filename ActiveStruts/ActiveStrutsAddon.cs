@@ -9,6 +9,7 @@ namespace ActiveStruts
         public static ModuleActiveStrut CurrentTargeter { get; set; }
         public static AddonMode Mode { get; set; }
         public static Vector3 Origin { get; set; }
+        private bool _resetAllHighlighting = false;
 
         //must not be static
         private void ActionMenuClosed(Part data)
@@ -104,8 +105,7 @@ namespace ActiveStruts
             _connector.transform.localScale = new Vector3(Config.ConnectorDimension, Config.ConnectorDimension, Config.ConnectorDimension);
             var mr = _connector.GetComponent<MeshRenderer>();
             mr.name = "ASConn";
-            mr.material = new Material(Shader.Find("Diffuse")); // {mainTexture = GameDatabase.Instance.GetTexture(_path + "IR_Robotic.tga", false)};
-            mr.material.color = Util.MakeColorTransparent(Color.green);
+            mr.material = new Material(Shader.Find("Transparent/Diffuse")) { color = Util.MakeColorTransparent(Color.green) };
             _connector.SetActive(false);
         }
 
@@ -113,9 +113,18 @@ namespace ActiveStruts
         {
             if (!HighLogic.LoadedSceneIsFlight || Mode == AddonMode.None || CurrentTargeter == null)
             {
+                if (_resetAllHighlighting)
+                {
+                    _resetAllHighlighting = false;
+                    foreach (var moduleActiveStrut in FlightGlobals.ActiveVessel.GetAllActiveStruts())
+                    {
+                        moduleActiveStrut.part.SetHighlightDefault();
+                    }
+                }
                 _connector.SetActive(false);
                 return;
             }
+            _resetAllHighlighting = true;
             var mp = Util.GetMouseWorldPosition();
             _pointToMousePosition(mp);
             var raycast = Util.PerformRaycast(CurrentTargeter.Origin.position, mp, CurrentTargeter.Origin.right);

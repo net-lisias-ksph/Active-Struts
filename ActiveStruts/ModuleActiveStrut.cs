@@ -132,6 +132,10 @@ namespace ActiveStruts
             strut.LookAt(target);
             strut.localScale = new Vector3(1, 1, 1);
             var distance = -1*Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(target))*distancePercent;
+            if (this.IsFreeAttached)
+            {
+                distance -= Config.FreeAttachStrutExtension;
+            }
             this.Strut.localScale = new Vector3(1, 1, distance);
         }
 
@@ -184,7 +188,7 @@ namespace ActiveStruts
                 return;
             }
             this._delayedStartFlag = true;
-            this._ticksForDelayedStart = 100;
+            this._ticksForDelayedStart = Config.StartDelay;
         }
 
         public override void OnUpdate()
