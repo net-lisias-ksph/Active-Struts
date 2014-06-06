@@ -39,7 +39,7 @@ namespace ActiveStruts
             var raycast = PerformRaycast(origin.Origin.position, origin.FreeAttachPoint, origin.Origin.right);
             if (raycast.HitResult)
             {
-                var distOk = DistanceInToleranceRange(origin.FreeFormAttachmentDistance, raycast.DistanceFromOrigin);
+                var distOk = DistanceInToleranceRange(origin.FreeAttachDistance, raycast.DistanceFromOrigin);
                 return new FreeAttachTargetCheck
                        {
                            TargetPart = raycast.HittedPart,

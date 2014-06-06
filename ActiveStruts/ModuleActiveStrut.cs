@@ -6,8 +6,8 @@ namespace ActiveStruts
 {
     public class ModuleActiveStrut : PartModule
     {
-        [KSPField(isPersistant = true)] public float FreeFormAttachmentDistance = 0.0f;
-        [KSPField(isPersistant = true)] public string FreeFormAttachmentPoint = "0.0 0.0 0.0";
+        [KSPField(isPersistant = true)] public float FreeAttachDistance = 0.0f;
+        [KSPField(isPersistant = true)] public string FreeAttachPointString = "0.0 0.0 0.0";
         [KSPField(isPersistant = true, guiActive = true)] public string Id = Guid.Empty.ToString();
         [KSPField(isPersistant = true)] public bool IsConnectionOrigin = false;
         [KSPField(isPersistant = true)] public bool IsFreeFormAttached = false;
@@ -31,10 +31,10 @@ namespace ActiveStruts
         {
             get
             {
-                var coords = this.FreeFormAttachmentPoint.Split(' ').Select(float.Parse).ToArray();
+                var coords = this.FreeAttachPointString.Split(' ').Select(float.Parse).ToArray();
                 return new Vector3(coords[0], coords[1], coords[2]);
             }
-            set { this.FreeFormAttachmentPoint = string.Format("{0} {1} {2}", value.x, value.y, value.z); }
+            set { this.FreeAttachPointString = string.Format("{0} {1} {2}", value.x, value.y, value.z); }
         }
 
         private Part FreeAttachPart
@@ -258,15 +258,27 @@ namespace ActiveStruts
             this.CreateJoint(this.part.rigidbody, hittedPart.rigidbody, LinkType.Weak);
             this.CreateStrut(hitPosition);
             FreeAttachPoint = hitPosition;
-            FreeFormAttachmentDistance = distance;
+            this.FreeAttachDistance = distance;
             this.Target = null;
             this.Targeter = null;
+            ActiveStrutsAddon.Mode = AddonMode.None;
             OSD.Success("FreeAttach Link established!");
             this.UpdateGui();
         }
 
         private void Reconnect()
         {
+            if (this.IsFreeFormAttached)
+            {
+                var rayRes = this.CheckFreeAttachPoint();
+                if (!rayRes.HitResult)
+                {
+                    IsFreeFormAttached = false;
+                    return;
+                }
+                this.PlaceFreeAttach(rayRes.TargetPart,FreeAttachPoint,this.FreeAttachDistance);
+                return;
+            }
             if (this.IsConnectionOrigin)
             {
                 if (this.Target != null && this.IsPossibleTarget(this.Target))
@@ -435,6 +447,7 @@ namespace ActiveStruts
                 case Mode.Unlinked:
                 {
                     this.Events["SetAsTarget"].active = this.Events["SetAsTarget"].guiActive = false;
+                    this.Events["Unlink"].active = this.Events["Unlink"].guiActive = false;
                     if (this.IsTargetOnly)
                     {
                         this.Events["Link"].active = this.Events["Link"].guiActive = false;
