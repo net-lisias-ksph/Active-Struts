@@ -287,7 +287,7 @@ namespace ActiveStruts
                     {
                         this.CreateStrut(this.Target.Origin.position);
                     }
-                    this.CreateJoint(this.part.rigidbody, this.Target.part.rigidbody, LinkType.Maximal);
+                    this.CreateJoint(this.part.rigidbody, this.Target.part.rigidbody, this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal);
                     this.Mode = Mode.Linked;
                     this.IsLinked = true;
                 }
