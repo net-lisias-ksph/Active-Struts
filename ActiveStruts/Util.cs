@@ -16,6 +16,12 @@ namespace ActiveStruts
         public float RayAngle { get; set; }
     }
 
+    public class FreeAttachTargetCheck
+    {
+        public Part TargetPart { get; set; }
+        public bool HitResult { get; set; }
+    }
+
     public static class Util
     {
         public static bool AnyTargetersConnected(this ModuleActiveStrut target)
@@ -26,6 +32,30 @@ namespace ActiveStruts
         public static List<ModuleActiveStrut> GetAllActiveStruts(this Vessel vessel)
         {
             return vessel.Parts.Where(p => p.Modules.Contains(Config.ModuleName)).Select(p => p.Modules[Config.ModuleName] as ModuleActiveStrut).ToList();
+        }
+
+        public static FreeAttachTargetCheck CheckFreeAttachPoint(this ModuleActiveStrut origin)
+        {
+            var raycast = PerformRaycast(origin.Origin.position, origin.FreeAttachPoint, origin.Origin.right);
+            if (raycast.HitResult)
+            {
+                var distOk = DistanceInToleranceRange(origin.FreeFormAttachmentDistance, raycast.DistanceFromOrigin);
+                return new FreeAttachTargetCheck
+                       {
+                           TargetPart = raycast.HittedPart,
+                           HitResult = distOk && raycast.HitCurrentVessel
+                       };
+            }
+            return new FreeAttachTargetCheck
+                   {
+                       TargetPart = null,
+                       HitResult = false
+                   };
+        }
+
+        public static bool DistanceInToleranceRange(float savedDistance, float currentDistance)
+        {
+            return currentDistance >= savedDistance - Config.FreeAttachDistanceTolerance && currentDistance <= savedDistance + Config.FreeAttachDistanceTolerance && currentDistance <= Config.MaxDistance;
         }
 
         public static List<ModuleActiveStrut> GetAllPossibleTargets(this ModuleActiveStrut origin)
@@ -151,6 +181,7 @@ namespace ActiveStruts
                 moduleActiveStrut.Mode = Mode.Unlinked;
                 moduleActiveStrut.part.SetHighlightDefault();
                 moduleActiveStrut.UpdateGui();
+                moduleActiveStrut.Targeter = moduleActiveStrut.OldTargeter;
             }
         }
 

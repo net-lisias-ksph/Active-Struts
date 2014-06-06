@@ -10,6 +10,7 @@ namespace ActiveStruts
         public static AddonMode Mode { get; set; }
         public static Vector3 Origin { get; set; }
 
+        //must not be static
         private void ActionMenuClosed(Part data)
         {
             if (!_checkForModule(data))
@@ -29,9 +30,7 @@ namespace ActiveStruts
             {
                 module.Targeter.part.SetHighlightDefault();
             }
-        }
-
-        // ReSharper disable once InconsistentNaming
+        }        
 
         //must not be static
         private void ActionMenuCreated(Part data)
@@ -86,6 +85,7 @@ namespace ActiveStruts
             GameEvents.onPartActionUIDismiss.Remove(this.ActionMenuClosed);
         }
 
+        // ReSharper disable once InconsistentNaming
         public void OnGUI()
         {
             OSD.Update();
@@ -105,8 +105,6 @@ namespace ActiveStruts
             mr.material.color = Util.MakeColorTransparent(Color.green);
             _connector.SetActive(false);
         }
-
-        //must not be static
 
         public void Update()
         {
@@ -187,7 +185,7 @@ namespace ActiveStruts
                     {
                         if (validPos)
                         {
-                            CurrentTargeter.PlaceFreeAttach(raycast.HittedPart, mp);
+                            CurrentTargeter.PlaceFreeAttach(raycast.HittedPart, mp, raycast.DistanceFromOrigin);
                         }
                     }
                     else if (Input.GetKeyDown(KeyCode.Mouse1))

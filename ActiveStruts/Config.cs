@@ -12,5 +12,6 @@
         public const string FreeAttachHelpText = "Click left on a valid position to establish a link. Click right to abort.";
         public const float ConnectorDimension = 0.025f;
         public const float ColorTransparency = 0.5f;
+        public const float FreeAttachDistanceTolerance = 0.1f;
     }
 }

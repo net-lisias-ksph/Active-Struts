@@ -15,7 +15,6 @@ namespace ActiveStruts
         [KSPField(isPersistant = true)] public bool IsLinked = false;
         [KSPField(isPersistant = true)] public bool IsTargetOnly = false;
         public Transform Origin;
-        //[KSPField(isPersistant = true)] public string RayCastOriginName = "rayCastOrigin";
         [KSPField(isPersistant = false, guiActive = true)] public string State = "n.a.";
         [KSPField(guiActive = true)] public string Strength = LinkType.None.ToString();
         public Transform Strut;
@@ -25,8 +24,10 @@ namespace ActiveStruts
         private ConfigurableJoint _joint;
         private LinkType _linkType;
         private Mode _mode = Mode.Undefined;
+        public ModuleActiveStrut OldTargeter;
+        private Part _freeAttachPart;
 
-        private Vector3 FreeAttachPoint
+        public Vector3 FreeAttachPoint
         {
             get
             {
@@ -34,6 +35,23 @@ namespace ActiveStruts
                 return new Vector3(coords[0], coords[1], coords[2]);
             }
             set { this.FreeFormAttachmentPoint = string.Format("{0} {1} {2}", value.x, value.y, value.z); }
+        }
+
+        private Part FreeAttachPart
+        {
+            get
+            {
+                if (this._freeAttachPart != null)
+                {
+                    return this._freeAttachPart;
+                }
+                var rayRes = this.CheckFreeAttachPoint();
+                if (rayRes.HitResult)
+                {
+                    this._freeAttachPart = rayRes.TargetPart;
+                }
+                return this._freeAttachPart;
+            }
         }
 
         public Guid ID
@@ -69,13 +87,13 @@ namespace ActiveStruts
         public ModuleActiveStrut Target
         {
             get { return this.TargetId == Guid.Empty.ToString() ? null : this.part.vessel.GetStrutById(new Guid(this.TargetId)); }
-            set { this.TargetId = value.ID.ToString(); }
+            set { this.TargetId = value != null ? value.ID.ToString() : Guid.Empty.ToString(); }
         }
 
         public ModuleActiveStrut Targeter
         {
             get { return this.TargeterId == Guid.Empty.ToString() ? null : this.part.vessel.GetStrutById(new Guid(this.TargeterId)); }
-            set { this.TargeterId = value.ID.ToString(); }
+            set { this.TargeterId = value != null ? value.ID.ToString() : Guid.Empty.ToString(); }
         }
 
         [KSPEvent(name = "AbortLink", active = false, guiName = "Abort Link", guiActiveUnfocused = true, unfocusedRange = 50)]
@@ -124,8 +142,8 @@ namespace ActiveStruts
             this.Strut.localScale = Vector3.zero;
         }
 
-        [KSPEvent(name = "FreeAttach", active = false, guiName = "Unlink", guiActiveUnfocused = true, unfocusedRange = 50)]
-        public void FreeAttachStart()
+        [KSPEvent(name = "FreeAttach", active = false, guiName = "FreeAttach Link", guiActiveUnfocused = true, unfocusedRange = 50)]
+        public void FreeAttach()
         {
             OSD.Info(Config.FreeAttachHelpText);
             ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
@@ -199,6 +217,15 @@ namespace ActiveStruts
             }
             if (this.Mode == Mode.Linked)
             {
+                if (this.IsFreeFormAttached)
+                {
+                    if (this.FreeAttachPart != null && this.FreeAttachPart.vessel == this.vessel)
+                    {
+                        return;
+                    }
+                    this.Unlink();
+                    return;
+                }
                 if (this.IsConnectionOrigin)
                 {
                     if (this.Target != null && this.Target.vessel == this.vessel)
@@ -222,13 +249,18 @@ namespace ActiveStruts
             }
         }
 
-        public void PlaceFreeAttach(Part hittedPart, Vector3 hitPosition)
+        public void PlaceFreeAttach(Part hittedPart, Vector3 hitPosition, float distance)
         {
             this.Mode = Mode.Linked;
             this.IsLinked = true;
+            this.IsFreeFormAttached = true;
             this.IsConnectionOrigin = true;
             this.CreateJoint(this.part.rigidbody, hittedPart.rigidbody, LinkType.Weak);
             this.CreateStrut(hitPosition);
+            FreeAttachPoint = hitPosition;
+            FreeFormAttachmentDistance = distance;
+            this.Target = null;
+            this.Targeter = null;
             OSD.Success("FreeAttach Link established!");
             this.UpdateGui();
         }
@@ -292,6 +324,7 @@ namespace ActiveStruts
 
         public void SetTargetedBy(ModuleActiveStrut targeter)
         {
+            this.OldTargeter = this.Targeter ?? targeter;
             this.Targeter = targeter;
             this.Mode = Mode.Target;
             this.part.SetHighlightColor(Color.green);
@@ -344,10 +377,14 @@ namespace ActiveStruts
         {
             if (!this.IsTargetOnly && this.Target != null)
             {
-                if (this.IsConnectionOrigin)
+                if (this.IsConnectionOrigin && !IsFreeFormAttached)
                 {
                     this.Target.Unlink();
                     OSD.Success("Unlinked!");
+                }
+                if (IsFreeFormAttached)
+                {
+                    this.IsFreeFormAttached = false;
                 }
                 this.Mode = Mode.Unlinked;
                 this.IsLinked = false;
