@@ -14,6 +14,7 @@ namespace ActiveStruts
         [KSPField(isPersistant = true)] public bool IsHalfWayExtended = false;
         [KSPField(isPersistant = true)] public bool IsLinked = false;
         [KSPField(isPersistant = true)] public bool IsTargetOnly = false;
+        public ModuleActiveStrut OldTargeter;
         public Transform Origin;
         [KSPField(isPersistant = false, guiActive = true)] public string State = "n.a.";
         [KSPField(guiActive = true)] public string Strength = LinkType.None.ToString();
@@ -21,21 +22,12 @@ namespace ActiveStruts
         [KSPField(isPersistant = true)] public string StrutName = "strut";
         [KSPField(isPersistant = true)] public string TargetId = Guid.NewGuid().ToString();
         [KSPField(isPersistant = true)] public string TargeterId = Guid.NewGuid().ToString();
+        private bool _delayedStartFlag;
+        private Part _freeAttachPart;
         private ConfigurableJoint _joint;
         private LinkType _linkType;
         private Mode _mode = Mode.Undefined;
-        public ModuleActiveStrut OldTargeter;
-        private Part _freeAttachPart;
-
-        public Vector3 FreeAttachPoint
-        {
-            get
-            {
-                var coords = this.FreeAttachPointString.Split(' ').Select(float.Parse).ToArray();
-                return new Vector3(coords[0], coords[1], coords[2]);
-            }
-            set { this.FreeAttachPointString = string.Format("{0} {1} {2}", value.x, value.y, value.z); }
-        }
+        private int _ticksForDelayedStart;
 
         private Part FreeAttachPart
         {
@@ -52,6 +44,16 @@ namespace ActiveStruts
                 }
                 return this._freeAttachPart;
             }
+        }
+
+        public Vector3 FreeAttachPoint
+        {
+            get
+            {
+                var coords = this.FreeAttachPointString.Split(' ').Select(float.Parse).ToArray();
+                return new Vector3(coords[0], coords[1], coords[2]);
+            }
+            set { this.FreeAttachPointString = string.Format("{0} {1} {2}", value.x, value.y, value.z); }
         }
 
         public Guid ID
@@ -176,49 +178,16 @@ namespace ActiveStruts
             this.Origin = this.part.transform;
             if (state == StartState.Editor)
             {
-                _delayedStartFlag = false;
+                this._delayedStartFlag = false;
                 return;
             }
-            _delayedStartFlag = true;
-            _ticksForDelayedStart = 100;
-        }
-
-        private int _ticksForDelayedStart;
-        private bool _delayedStartFlag;
-
-        private void _delayedStart()
-        {
-            if (_ticksForDelayedStart > 0)
-            {
-                _ticksForDelayedStart--;
-                return;
-            }
-            _delayedStartFlag = false;
-            if (this.Id == Guid.Empty.ToString())
-            {
-                this.Id = Guid.NewGuid().ToString();
-            }
-            if (this.IsLinked)
-            {
-                if (this.IsTargetOnly)
-                {
-                    this.Mode = Mode.Linked;
-                }
-                else
-                {
-                    this.Reconnect();
-                }
-            }
-            else
-            {
-                this.Mode = Mode.Unlinked;
-            }
-            this.UpdateGui();
+            this._delayedStartFlag = true;
+            this._ticksForDelayedStart = 100;
         }
 
         public override void OnUpdate()
         {
-            if (_delayedStartFlag)
+            if (this._delayedStartFlag)
             {
                 this._delayedStart();
                 return;
@@ -278,7 +247,7 @@ namespace ActiveStruts
             this.IsConnectionOrigin = true;
             this.CreateJoint(this.part.rigidbody, hittedPart.rigidbody, LinkType.Weak);
             this.CreateStrut(hitPosition);
-            FreeAttachPoint = hitPosition;
+            this.FreeAttachPoint = hitPosition;
             this.FreeAttachDistance = distance;
             this.Target = null;
             this.Targeter = null;
@@ -297,7 +266,7 @@ namespace ActiveStruts
                     this.IsFreeAttached = false;
                     return;
                 }
-                this.PlaceFreeAttach(rayRes.TargetPart, FreeAttachPoint, this.FreeAttachDistance);
+                this.PlaceFreeAttach(rayRes.TargetPart, this.FreeAttachPoint, this.FreeAttachDistance);
                 return;
             }
             if (this.IsConnectionOrigin)
@@ -515,6 +484,36 @@ namespace ActiveStruts
                 }
                     break;
             }
+        }
+
+        private void _delayedStart()
+        {
+            if (this._ticksForDelayedStart > 0)
+            {
+                this._ticksForDelayedStart--;
+                return;
+            }
+            this._delayedStartFlag = false;
+            if (this.Id == Guid.Empty.ToString())
+            {
+                this.Id = Guid.NewGuid().ToString();
+            }
+            if (this.IsLinked)
+            {
+                if (this.IsTargetOnly)
+                {
+                    this.Mode = Mode.Linked;
+                }
+                else
+                {
+                    this.Reconnect();
+                }
+            }
+            else
+            {
+                this.Mode = Mode.Unlinked;
+            }
+            this.UpdateGui();
         }
     }
 }

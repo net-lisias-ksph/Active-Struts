@@ -18,8 +18,8 @@ namespace ActiveStruts
 
     public class FreeAttachTargetCheck
     {
-        public Part TargetPart { get; set; }
         public bool HitResult { get; set; }
+        public Part TargetPart { get; set; }
     }
 
     public static class Util
@@ -27,11 +27,6 @@ namespace ActiveStruts
         public static bool AnyTargetersConnected(this ModuleActiveStrut target)
         {
             return FlightGlobals.ActiveVessel.GetAllActiveStruts().Any(m => !m.IsTargetOnly && m.Mode == Mode.Linked && m.Target != null && m.Target == target);
-        }
-
-        public static List<ModuleActiveStrut> GetAllActiveStruts(this Vessel vessel)
-        {
-            return vessel.Parts.Where(p => p.Modules.Contains(Config.ModuleName)).Select(p => p.Modules[Config.ModuleName] as ModuleActiveStrut).ToList();
         }
 
         public static FreeAttachTargetCheck CheckFreeAttachPoint(this ModuleActiveStrut origin)
@@ -56,6 +51,11 @@ namespace ActiveStruts
         public static bool DistanceInToleranceRange(float savedDistance, float currentDistance)
         {
             return currentDistance >= savedDistance - Config.FreeAttachDistanceTolerance && currentDistance <= savedDistance + Config.FreeAttachDistanceTolerance && currentDistance <= Config.MaxDistance;
+        }
+
+        public static List<ModuleActiveStrut> GetAllActiveStruts(this Vessel vessel)
+        {
+            return vessel.Parts.Where(p => p.Modules.Contains(Config.ModuleName)).Select(p => p.Modules[Config.ModuleName] as ModuleActiveStrut).ToList();
         }
 
         public static List<ModuleActiveStrut> GetAllPossibleTargets(this ModuleActiveStrut origin)
