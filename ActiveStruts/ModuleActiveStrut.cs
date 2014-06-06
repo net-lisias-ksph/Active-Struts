@@ -1,4 +1,27 @@
-﻿using System;
+﻿/*
+The MIT License (MIT)
+Copyright (c) 2014 marce
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+*/
+
+using System;
 using System.Linq;
 using UnityEngine;
 
@@ -28,8 +51,21 @@ namespace ActiveStruts
         private LinkType _linkType;
         private Mode _mode = Mode.Undefined;
         private int _ticksForDelayedStart;
-        private Vector3 _freeAttachTargetLocalVector;
-        private float _freeAttachTargetLocalDistance;
+        [KSPField(isPersistant = true)]
+        public string FreeAttachTargetLocalVectorString = "0.0 0.0 0.0";
+
+        public Vector3 FreeAttachTargetLocalVector
+        {
+            get
+            {
+                var coords = this.FreeAttachTargetLocalVectorString.Split(' ').Select(float.Parse).ToArray();
+                return new Vector3(coords[0], coords[1], coords[2]);
+            }
+            set
+            {
+                this.FreeAttachTargetLocalVectorString = string.Format("{0} {1} {2}", value.x, value.y, value.z);
+            }
+        }
         private int _strutRealignCounter;
 
         private Part FreeAttachPart
@@ -134,7 +170,8 @@ namespace ActiveStruts
             var strut = this.Strut;
             strut.LookAt(target);
             strut.localScale = new Vector3(1, 1, 1);
-            var distance = -1*Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(target))*distancePercent;
+            var distance = -1 * Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(target)) * distancePercent;
+            Debug.Log("[AS] original strut distance: " + distance);
             if (this.IsFreeAttached)
             {
                 distance -= Config.FreeAttachStrutExtension;
@@ -265,11 +302,9 @@ namespace ActiveStruts
         {
             if (this.IsFreeAttached)
             {
-                Debug.Log("[AS] realigning freeattach strut");
-                var targetPos = Util.GetNewWorldPosForFreeAttachTarget(this._freeAttachPart, this._freeAttachTargetLocalVector, this._freeAttachTargetLocalDistance);
-                var strutLength = Vector3.Distance(targetPos, this.Origin.position);
+                var targetPos = Util.GetNewWorldPosForFreeAttachTarget(this._freeAttachPart, this.FreeAttachTargetLocalVector);
                 this.DestroyStrut();
-                this.CreateStrut(targetPos, strutLength);
+                this.CreateStrut(targetPos);
             }
             else if (!this.IsTargetOnly)
             {
@@ -306,10 +341,7 @@ namespace ActiveStruts
             ActiveStrutsAddon.Mode = AddonMode.None;
             OSD.Success("FreeAttach Link established!");
             this.UpdateGui();
-            this._freeAttachTargetLocalVector = hitPosition - hittedPart.transform.position;
-            this._freeAttachTargetLocalDistance = Vector3.Distance(hittedPart.transform.position, hitPosition);
-            Debug.Log("[AS] freeattach realign data: vector=" + this._freeAttachTargetLocalVector.ToDebugString() + " distance=" + this._freeAttachTargetLocalDistance);
-            Debug.Log("[AS] original free attach point = " + hitPosition.ToDebugString());
+            this.FreeAttachTargetLocalVector = hitPosition - hittedPart.transform.position;
         }
 
         private void Reconnect()

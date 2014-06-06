@@ -48,6 +48,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ActiveStrutsAddon.cs" />
+    <Compile Include="ActiveStrutsConfigLoaderAddon.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="LinkType.cs" />
     <Compile Include="Mode.cs" />
