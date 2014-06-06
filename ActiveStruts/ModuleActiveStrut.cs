@@ -397,8 +397,9 @@ namespace ActiveStruts
                 this.IsLinked = false;
                 this.DestroyJoint();
                 this.DestroyStrut();
-                this.UpdateGui();
+                this.LinkType = LinkType.None;
                 this.IsConnectionOrigin = false;
+                this.UpdateGui();
                 return;
             }
             if (this.IsTargetOnly)
@@ -414,6 +415,7 @@ namespace ActiveStruts
             this.Mode = Mode.Unlinked;
             this.IsLinked = false;
             this.DestroyStrut();
+            this.LinkType = LinkType.None;
             this.UpdateGui();
         }
 

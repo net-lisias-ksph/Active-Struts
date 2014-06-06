@@ -63,7 +63,7 @@ namespace ActiveStruts
             {
                 case AddonMode.Link:
                 {
-                    if (raycast.HittedPart != null)
+                    if (raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(Config.ModuleName))
                     {
                         var moduleActiveStrut = raycast.HittedPart.Modules[Config.ModuleName] as ModuleActiveStrut;
                         if (moduleActiveStrut != null)
