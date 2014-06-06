@@ -18,9 +18,9 @@ namespace ActiveStruts
 
         private static readonly List<Message> Msgs = new List<Message>();
 
-        public static void AddMessage(String text, Color color, float shownFor = 3.7f)
+        public static void AddMessage(String text, Color color, float shownFor)
         {
-            var msg = new Message { Text = Prefix + text, Color = color, HideAt = Time.time + shownFor };
+            var msg = new Message {Text = Prefix + text, Color = color, HideAt = Time.time + shownFor};
             Msgs.Add(msg);
         }
 
@@ -32,23 +32,23 @@ namespace ActiveStruts
 
         private static GUIStyle CreateStyle(Color color)
         {
-            var style = new GUIStyle { stretchWidth = true, alignment = TextAnchor.MiddleCenter, fontSize = 16, fontStyle = FontStyle.Bold, normal = { textColor = color } };
+            var style = new GUIStyle {stretchWidth = true, alignment = TextAnchor.MiddleCenter, fontSize = 16, fontStyle = FontStyle.Bold, normal = {textColor = color}};
             return style;
         }
 
-        public static void Error(String text)
+        public static void Error(String text, float showDuration = 3.7f)
         {
-            AddMessage(text, XKCDColors.LightRed);
+            AddMessage(text, XKCDColors.LightRed, showDuration);
         }
 
-        public static void Info(String text)
+        public static void Info(String text, float showDuration = 3.7f)
         {
-            AddMessage(text, XKCDColors.OffWhite);
+            AddMessage(text, XKCDColors.OffWhite, showDuration);
         }
 
-        public static void Success(String text)
+        public static void Success(String text, float showDuration = 3.7f)
         {
-            AddMessage(text, XKCDColors.Cerulean);
+            AddMessage(text, XKCDColors.Cerulean, showDuration);
         }
 
         public static void Update()
@@ -59,14 +59,14 @@ namespace ActiveStruts
             }
             Msgs.RemoveAll(m => Time.time >= m.HideAt);
             var h = CalcHeight();
-            GUILayout.BeginArea(new Rect(0, Screen.height * 0.1f, Screen.width, h), CreateStyle(Color.white));
+            GUILayout.BeginArea(new Rect(0, Screen.height*0.1f, Screen.width, h), CreateStyle(Color.white));
             Msgs.ForEach(m => GUILayout.Label(m.Text, CreateStyle(m.Color)));
             GUILayout.EndArea();
         }
 
-        public static void Warn(String text)
+        public static void Warn(String text, float showDuration = 3.7f)
         {
-            AddMessage(text, XKCDColors.Yellow);
+            AddMessage(text, XKCDColors.Yellow, showDuration);
         }
 
         private class Message

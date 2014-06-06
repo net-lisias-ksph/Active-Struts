@@ -87,7 +87,7 @@ namespace ActiveStruts
 
         public static bool IsPossibleFreeAttachTarget(this ModuleActiveStrut origin, Vector3 mousePosition)
         {
-            var raycast = PerformRaycast(origin.Origin.position, mousePosition, origin.Origin.up);
+            var raycast = PerformRaycast(origin.Origin.position, mousePosition, origin.Origin.right);
             return raycast.HitResult && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= Config.MaxDistance && raycast.RayAngle <= Config.MaxAngle;
         }
 
@@ -133,6 +133,12 @@ namespace ActiveStruts
             ret[2] = color.b;
             ret[3] = color.a;
             return ret;
+        }
+
+        public static Color MakeColorTransparent(Color color)
+        {
+            var rgba = GetRgbaFromColor(color);
+            return new Color(rgba[0],rgba[1],rgba[2],Config.ColorTransparency);
         }
 
         public static Part PartFromHit(this RaycastHit hit)

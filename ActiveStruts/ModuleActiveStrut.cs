@@ -14,7 +14,7 @@ namespace ActiveStruts
         [KSPField(isPersistant = true)] public bool IsHalfWayExtended = false;
         [KSPField(isPersistant = true)] public bool IsLinked = false;
         [KSPField(isPersistant = true)] public bool IsTargetOnly = false;
-        [KSPField(isPersistant = true)] public string RayCastOriginName = "rayCastOrigin";
+        //[KSPField(isPersistant = true)] public string RayCastOriginName = "rayCastOrigin";
         [KSPField(isPersistant = false, guiActive = true)] public string State = "n.a.";
         [KSPField(guiActive = true)] public string Strength = LinkType.None.ToString();
         [KSPField(isPersistant = true)] public string StrutName = "strut";
@@ -41,7 +41,7 @@ namespace ActiveStruts
 
         public bool IsConnectionFree
         {
-            get { return this.IsTargetOnly || !this.IsLinked; }
+            get { return this.IsTargetOnly || !this.IsLinked || (this.IsLinked && this.Mode == Mode.Unlinked); }
         }
 
         public LinkType LinkType
@@ -131,6 +131,42 @@ namespace ActiveStruts
 
         public override void OnUpdate()
         {
+            if (this.Mode == Mode.Unlinked || this.Mode == Mode.Target || this.Mode == Mode.Targeting)
+            {
+                return;
+            }
+            if (this.IsTargetOnly)
+            {
+                if (!this.AnyTargetersConnected())
+                {
+                    this.Mode = Mode.Unlinked;
+                    this.UpdateGui();
+                    return;
+                }
+            }
+            if (this.Mode == Mode.Linked)
+            {
+                if (this.IsConnectionOrigin)
+                {
+                    if (this.Target != null && this.Target.vessel == this.vessel)
+                    {
+                        return;
+                    }
+                    this.DestroyJoint();
+                    this.DestroyStrut();
+                    this.Mode = Mode.Unlinked;
+                }
+                else
+                {
+                    if (this.Targeter != null && this.Targeter.vessel == this.vessel)
+                    {
+                        return;
+                    }
+                    this.DestroyStrut();
+                    this.Mode = Mode.Unlinked;
+                }
+                this.UpdateGui();
+            }
         }
 
         public ModuleActiveStrut Targeter
@@ -142,7 +178,7 @@ namespace ActiveStruts
         public ModuleActiveStrut Target
         {
             get { return this.TargetId == Guid.Empty.ToString() ? null : this.part.vessel.GetStrutById(new Guid(this.TargetId)); }
-            set { this.TargetId = value.ToString(); }
+            set { this.TargetId = value.ID.ToString(); }
         }
 
         [KSPEvent(name = "Link", active = false, guiName = "Link", guiActiveUnfocused = true, unfocusedRange = 50)]
@@ -155,6 +191,41 @@ namespace ActiveStruts
                 possibleTarget.UpdateGui();
                 Debug.Log("[AS] setting " + possibleTarget.ID + " as target");
             }
+            ActiveStrutsAddon.Mode = AddonMode.Link;
+            ActiveStrutsAddon.CurrentTargeter = this;
+            OSD.Info(Config.LinkHelpText, 5);
+            this.UpdateGui();
+        }
+
+        [KSPEvent(name = "ToggleLink", active = false, guiName = "Toggle Link", guiActiveUnfocused = true, unfocusedRange = 50)]
+        public void ToggleLink()
+        {
+            if (this.Mode == Mode.Linked)
+            {
+                if (this.IsConnectionOrigin)
+                {
+                    this.Unlink();
+                }
+                else
+                {
+                    if (this.Targeter != null)
+                    {
+                        this.Targeter.Unlink();
+                    }
+                }
+            }
+            else if (this.Mode == Mode.Unlinked && ((this.Target != null && this.Target.IsConnectionFree) || (this.Targeter != null && this.Targeter.IsConnectionFree)))
+            {
+                if (this.Target != null)
+                {
+                    this.Target.Targeter = this;
+                    this.Target.SetAsTarget();
+                }
+                else if (this.Targeter != null)
+                {
+                    this.SetAsTarget();
+                }
+            }
             this.UpdateGui();
         }
 
@@ -163,6 +234,8 @@ namespace ActiveStruts
         {
             this.Mode = Mode.Unlinked;
             Util.ResetAllFromTargeting();
+            ActiveStrutsAddon.Mode = AddonMode.None;
+            OSD.Info("Link aborted.");
             this.UpdateGui();
         }
 
@@ -190,6 +263,9 @@ namespace ActiveStruts
             this.CreateStrut(target.Origin.position, target.IsTargetOnly ? 1 : 0.5f);
             this.IsConnectionOrigin = true;
             Util.ResetAllFromTargeting();
+            OSD.Success("Link established!");
+            ActiveStrutsAddon.Mode = AddonMode.None;
+            this.UpdateGui();
         }
 
         [KSPEvent(name = "Unlink", active = false, guiName = "Unlink", guiActiveUnfocused = true, unfocusedRange = 50)]
@@ -197,7 +273,11 @@ namespace ActiveStruts
         {
             if (!this.IsTargetOnly && this.Target != null)
             {
-                this.Target.Unlink();
+                if (this.IsConnectionOrigin)
+                {
+                    this.Target.Unlink();
+                    OSD.Success("Unlinked!");
+                }
                 this.Mode = Mode.Unlinked;
                 this.IsLinked = false;
                 this.DestroyJoint();
@@ -222,6 +302,15 @@ namespace ActiveStruts
             this.UpdateGui();
         }
 
+        [KSPAction("ToggleLinkAction", KSPActionGroup.None, guiName = "Toggle Link")]
+        public void ToggleLinkAction(KSPActionParam param)
+        {
+            if (this.Mode == Mode.Linked || (this.Mode == Mode.Unlinked && ((this.Target != null && this.Target.IsConnectionFree) || (this.Targeter != null && this.Targeter.IsConnectionFree))))
+            {
+                this.ToggleLink();
+            }
+        }
+
         public void UpdateGui()
         {
             switch (Mode)
@@ -233,10 +322,13 @@ namespace ActiveStruts
                     if (!this.IsTargetOnly)
                     {
                         this.Events["Unlink"].active = this.Events["Unlink"].guiActive = true;
+                        this.Events["AbortLink"].active = this.Events["AbortLink"].guiActive = false;
+                        this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
                     }
                     else
                     {
                         this.Events["Unlink"].active = this.Events["Unlink"].guiActive = false;
+                        this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
                     }
                 }
                     break;
@@ -250,6 +342,15 @@ namespace ActiveStruts
                     else
                     {
                         this.Events["Link"].active = this.Events["Link"].guiActive = true;
+                        this.Events["AbortLink"].active = this.Events["AbortLink"].guiActive = false;
+                        if ((this.Target != null && this.Target.IsConnectionFree) || (this.Targeter != null && this.Targeter.IsConnectionFree))
+                        {
+                            this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
+                        }
+                        else
+                        {
+                            this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
+                        }
                     }
                 }
                     break;
@@ -260,11 +361,14 @@ namespace ActiveStruts
                     {
                         this.Events["Link"].active = this.Events["Link"].guiActive = false;
                     }
+                    this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
                 }
                     break;
                 case Mode.Targeting:
                 {
                     this.Events["Link"].active = this.Events["Link"].guiActive = false;
+                    this.Events["AbortLink"].active = this.Events["AbortLink"].guiActive = true;
+                    this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
                 }
                     break;
             }
@@ -289,6 +393,8 @@ namespace ActiveStruts
             this._joint.angularXMotion = ConfigurableJointMotion.Locked;
             this._joint.angularYMotion = ConfigurableJointMotion.Locked;
             this._joint.angularZMotion = ConfigurableJointMotion.Locked;
+            this.LinkType = type;
+            this.Target.LinkType = type;
         }
 
         public void CreateStrut(Vector3 target, float distancePercent = 1)
@@ -304,6 +410,7 @@ namespace ActiveStruts
         {
             Destroy(this._joint);
             this._joint = null;
+            this.LinkType = LinkType.None;
         }
 
         public void DestroyStrut()
