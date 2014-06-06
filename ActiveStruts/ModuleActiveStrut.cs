@@ -8,7 +8,7 @@ namespace ActiveStruts
     {
         [KSPField(isPersistant = true)] public float FreeAttachDistance = 0.0f;
         [KSPField(isPersistant = true)] public string FreeAttachPointString = "0.0 0.0 0.0";
-        [KSPField(isPersistant = true, guiActive = true)] public string Id = Guid.Empty.ToString();
+        [KSPField(isPersistant = true)] public string Id = Guid.Empty.ToString();
         [KSPField(isPersistant = true)] public bool IsConnectionOrigin = false;
         [KSPField(isPersistant = true)] public bool IsFreeAttached = false;
         [KSPField(isPersistant = true)] public bool IsHalfWayExtended = false;
@@ -335,7 +335,7 @@ namespace ActiveStruts
 
         public void SetTargetedBy(ModuleActiveStrut targeter)
         {
-            this.OldTargeter = this.Targeter ?? targeter;
+            this.OldTargeter = this.Targeter;
             this.Targeter = targeter;
             this.Mode = Mode.Target;
             this.part.SetHighlightColor(Color.green);
