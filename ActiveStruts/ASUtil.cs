@@ -5,8 +5,6 @@ using UnityEngine;
 
 namespace ActiveStruts
 {
-    
-
     public static class ASUtil
     {
         public static Tuple<bool, ModuleActiveStrutBase, ModuleActiveStrutBase> GetActiveStrut(this Vessel v, Guid targetId)

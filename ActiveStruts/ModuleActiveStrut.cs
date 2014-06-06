@@ -14,9 +14,11 @@ namespace ActiveStruts
         [KSPField(isPersistant = true)] public bool IsHalfWayExtended = false;
         [KSPField(isPersistant = true)] public bool IsLinked = false;
         [KSPField(isPersistant = true)] public bool IsTargetOnly = false;
+        public Transform Origin;
         //[KSPField(isPersistant = true)] public string RayCastOriginName = "rayCastOrigin";
         [KSPField(isPersistant = false, guiActive = true)] public string State = "n.a.";
         [KSPField(guiActive = true)] public string Strength = LinkType.None.ToString();
+        public Transform Strut;
         [KSPField(isPersistant = true)] public string StrutName = "strut";
         [KSPField(isPersistant = true)] public string TargetId = Guid.NewGuid().ToString();
         [KSPField(isPersistant = true)] public string TargeterId = Guid.NewGuid().ToString();
@@ -64,8 +66,87 @@ namespace ActiveStruts
             }
         }
 
-        public Transform Origin;
-        public Transform Strut;
+        public ModuleActiveStrut Target
+        {
+            get { return this.TargetId == Guid.Empty.ToString() ? null : this.part.vessel.GetStrutById(new Guid(this.TargetId)); }
+            set { this.TargetId = value.ID.ToString(); }
+        }
+
+        public ModuleActiveStrut Targeter
+        {
+            get { return this.TargeterId == Guid.Empty.ToString() ? null : this.part.vessel.GetStrutById(new Guid(this.TargeterId)); }
+            set { this.TargeterId = value.ID.ToString(); }
+        }
+
+        [KSPEvent(name = "AbortLink", active = false, guiName = "Abort Link", guiActiveUnfocused = true, unfocusedRange = 50)]
+        public void AbortLink()
+        {
+            this.Mode = Mode.Unlinked;
+            Util.ResetAllFromTargeting();
+            ActiveStrutsAddon.Mode = AddonMode.None;
+            OSD.Info("Link aborted.");
+            this.UpdateGui();
+        }
+
+        public void CreateJoint(Rigidbody originBody, Rigidbody targetBody, LinkType type)
+        {
+            this._joint = originBody.gameObject.AddComponent<ConfigurableJoint>();
+            this._joint.connectedBody = targetBody;
+            this._joint.breakForce = this._joint.breakTorque = type.GetJointStrength();
+            this._joint.xMotion = ConfigurableJointMotion.Locked;
+            this._joint.yMotion = ConfigurableJointMotion.Locked;
+            this._joint.zMotion = ConfigurableJointMotion.Locked;
+            this._joint.angularXMotion = ConfigurableJointMotion.Locked;
+            this._joint.angularYMotion = ConfigurableJointMotion.Locked;
+            this._joint.angularZMotion = ConfigurableJointMotion.Locked;
+            this.LinkType = type;
+            this.Target.LinkType = type;
+        }
+
+        public void CreateStrut(Vector3 target, float distancePercent = 1)
+        {
+            var strut = this.Strut;
+            strut.LookAt(target);
+            strut.localScale = new Vector3(1, 1, 1);
+            var distance = -1*Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(target))*distancePercent;
+            this.Strut.localScale = new Vector3(1, 1, distance);
+        }
+
+        public void DestroyJoint()
+        {
+            Destroy(this._joint);
+            this._joint = null;
+            this.LinkType = LinkType.None;
+        }
+
+        public void DestroyStrut()
+        {
+            this.Strut.localScale = Vector3.zero;
+        }
+
+        [KSPEvent(name = "FreeAttach", active = false, guiName = "Unlink", guiActiveUnfocused = true, unfocusedRange = 50)]
+        public void FreeAttachStart()
+        {
+            OSD.Info(Config.FreeAttachHelpText);
+            ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
+            ActiveStrutsAddon.CurrentTargeter = this;
+        }
+
+        [KSPEvent(name = "Link", active = false, guiName = "Link", guiActiveUnfocused = true, unfocusedRange = 50)]
+        public void Link()
+        {
+            this.Mode = Mode.Targeting;
+            foreach (var possibleTarget in this.GetAllPossibleTargets())
+            {
+                possibleTarget.SetTargetedBy(this);
+                possibleTarget.UpdateGui();
+                Debug.Log("[AS] setting " + possibleTarget.ID + " as target");
+            }
+            ActiveStrutsAddon.Mode = AddonMode.Link;
+            ActiveStrutsAddon.CurrentTargeter = this;
+            OSD.Info(Config.LinkHelpText, 5);
+            this.UpdateGui();
+        }
 
         public override void OnStart(StartState state)
         {
@@ -91,7 +172,7 @@ namespace ActiveStruts
                 }
                 else
                 {
-                    Reconnect();
+                    this.Reconnect();
                 }
             }
             else
@@ -99,34 +180,6 @@ namespace ActiveStruts
                 this.Mode = Mode.Unlinked;
             }
             this.UpdateGui();
-        }
-
-        private void Reconnect()
-        {
-            if (this.IsConnectionOrigin)
-            {
-                if (this.Target != null && this.IsPossibleTarget(this.Target))
-                {
-                    if (!this.Target.IsTargetOnly)
-                    {
-                        this.CreateStrut(this.Target.Origin.position, 0.5f);
-                    }
-                    else
-                    {
-                        this.CreateStrut(this.Target.Origin.position);
-                    }
-                    this.CreateJoint(this.part.rigidbody, this.Target.part.rigidbody, LinkType.Maximal);
-                    this.Mode = Mode.Linked;
-                }
-            }
-            else
-            {
-                if (this.IsPossibleTarget(this.Targeter))
-                {
-                    this.CreateStrut(this.Targeter.Origin.position, 0.5f);
-                    this.Mode = Mode.Linked;
-                }
-            }
         }
 
         public override void OnUpdate()
@@ -169,32 +222,80 @@ namespace ActiveStruts
             }
         }
 
-        public ModuleActiveStrut Targeter
+        public void PlaceFreeAttach(Part hittedPart, Vector3 hitPosition)
         {
-            get { return this.TargeterId == Guid.Empty.ToString() ? null : this.part.vessel.GetStrutById(new Guid(this.TargeterId)); }
-            set { this.TargeterId = value.ID.ToString(); }
-        }
-
-        public ModuleActiveStrut Target
-        {
-            get { return this.TargetId == Guid.Empty.ToString() ? null : this.part.vessel.GetStrutById(new Guid(this.TargetId)); }
-            set { this.TargetId = value.ID.ToString(); }
-        }
-
-        [KSPEvent(name = "Link", active = false, guiName = "Link", guiActiveUnfocused = true, unfocusedRange = 50)]
-        public void Link()
-        {
-            this.Mode = Mode.Targeting;
-            foreach (var possibleTarget in this.GetAllPossibleTargets())
-            {
-                possibleTarget.SetTargetedBy(this);
-                possibleTarget.UpdateGui();
-                Debug.Log("[AS] setting " + possibleTarget.ID + " as target");
-            }
-            ActiveStrutsAddon.Mode = AddonMode.Link;
-            ActiveStrutsAddon.CurrentTargeter = this;
-            OSD.Info(Config.LinkHelpText, 5);
+            this.Mode = Mode.Linked;
+            this.IsLinked = true;
+            this.IsConnectionOrigin = true;
+            this.CreateJoint(this.part.rigidbody, hittedPart.rigidbody, LinkType.Weak);
+            this.CreateStrut(hitPosition);
+            OSD.Success("FreeAttach Link established!");
             this.UpdateGui();
+        }
+
+        private void Reconnect()
+        {
+            if (this.IsConnectionOrigin)
+            {
+                if (this.Target != null && this.IsPossibleTarget(this.Target))
+                {
+                    if (!this.Target.IsTargetOnly)
+                    {
+                        this.CreateStrut(this.Target.Origin.position, 0.5f);
+                    }
+                    else
+                    {
+                        this.CreateStrut(this.Target.Origin.position);
+                    }
+                    this.CreateJoint(this.part.rigidbody, this.Target.part.rigidbody, LinkType.Maximal);
+                    this.Mode = Mode.Linked;
+                }
+            }
+            else
+            {
+                if (this.IsPossibleTarget(this.Targeter))
+                {
+                    this.CreateStrut(this.Targeter.Origin.position, 0.5f);
+                    this.Mode = Mode.Linked;
+                }
+            }
+        }
+
+        [KSPEvent(name = "SetAsTarget", active = false, guiName = "Set as Target", guiActiveUnfocused = true, unfocusedRange = 50)]
+        public void SetAsTarget()
+        {
+            this.Targeter.SetTarget(this);
+            this.IsLinked = true;
+            this.part.SetHighlightDefault();
+            this.Mode = Mode.Linked;
+            this.IsConnectionOrigin = false;
+            if (!this.IsTargetOnly)
+            {
+                this.CreateStrut(this.Targeter.Origin.position, 0.5f);
+            }
+            this.UpdateGui();
+        }
+
+        public void SetTarget(ModuleActiveStrut target)
+        {
+            this.Target = target;
+            this.Mode = Mode.Linked;
+            this.IsLinked = true;
+            this.CreateJoint(this.part.rigidbody, target.part.rigidbody, target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal);
+            this.CreateStrut(target.Origin.position, target.IsTargetOnly ? 1 : 0.5f);
+            this.IsConnectionOrigin = true;
+            Util.ResetAllFromTargeting();
+            OSD.Success("Link established!");
+            ActiveStrutsAddon.Mode = AddonMode.None;
+            this.UpdateGui();
+        }
+
+        public void SetTargetedBy(ModuleActiveStrut targeter)
+        {
+            this.Targeter = targeter;
+            this.Mode = Mode.Target;
+            this.part.SetHighlightColor(Color.green);
+            this.part.SetHighlight(true);
         }
 
         [KSPEvent(name = "ToggleLink", active = false, guiName = "Toggle Link", guiActiveUnfocused = true, unfocusedRange = 50)]
@@ -229,43 +330,13 @@ namespace ActiveStruts
             this.UpdateGui();
         }
 
-        [KSPEvent(name = "AbortLink", active = false, guiName = "Abort Link", guiActiveUnfocused = true, unfocusedRange = 50)]
-        public void AbortLink()
+        [KSPAction("ToggleLinkAction", KSPActionGroup.None, guiName = "Toggle Link")]
+        public void ToggleLinkAction(KSPActionParam param)
         {
-            this.Mode = Mode.Unlinked;
-            Util.ResetAllFromTargeting();
-            ActiveStrutsAddon.Mode = AddonMode.None;
-            OSD.Info("Link aborted.");
-            this.UpdateGui();
-        }
-
-        [KSPEvent(name = "SetAsTarget", active = false, guiName = "Set as Target", guiActiveUnfocused = true, unfocusedRange = 50)]
-        public void SetAsTarget()
-        {
-            this.Targeter.SetTarget(this);
-            this.IsLinked = true;
-            this.part.SetHighlightDefault();
-            this.Mode = Mode.Linked;
-            this.IsConnectionOrigin = false;
-            if (!this.IsTargetOnly)
+            if (this.Mode == Mode.Linked || (this.Mode == Mode.Unlinked && ((this.Target != null && this.Target.IsConnectionFree) || (this.Targeter != null && this.Targeter.IsConnectionFree))))
             {
-                this.CreateStrut(this.Targeter.Origin.position, 0.5f);
+                this.ToggleLink();
             }
-            this.UpdateGui();
-        }
-
-        public void SetTarget(ModuleActiveStrut target)
-        {
-            this.Target = target;
-            this.Mode = Mode.Linked;
-            this.IsLinked = true;
-            this.CreateJoint(this.part.rigidbody, target.part.rigidbody, target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal);
-            this.CreateStrut(target.Origin.position, target.IsTargetOnly ? 1 : 0.5f);
-            this.IsConnectionOrigin = true;
-            Util.ResetAllFromTargeting();
-            OSD.Success("Link established!");
-            ActiveStrutsAddon.Mode = AddonMode.None;
-            this.UpdateGui();
         }
 
         [KSPEvent(name = "Unlink", active = false, guiName = "Unlink", guiActiveUnfocused = true, unfocusedRange = 50)]
@@ -302,23 +373,15 @@ namespace ActiveStruts
             this.UpdateGui();
         }
 
-        [KSPAction("ToggleLinkAction", KSPActionGroup.None, guiName = "Toggle Link")]
-        public void ToggleLinkAction(KSPActionParam param)
-        {
-            if (this.Mode == Mode.Linked || (this.Mode == Mode.Unlinked && ((this.Target != null && this.Target.IsConnectionFree) || (this.Targeter != null && this.Targeter.IsConnectionFree))))
-            {
-                this.ToggleLink();
-            }
-        }
-
         public void UpdateGui()
         {
-            switch (Mode)
+            switch (this.Mode)
             {
                 case Mode.Linked:
                 {
                     this.Events["Link"].active = this.Events["Link"].guiActive = false;
                     this.Events["SetAsTarget"].active = this.Events["SetAsTarget"].guiActive = false;
+                    this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = false;
                     if (!this.IsTargetOnly)
                     {
                         this.Events["Unlink"].active = this.Events["Unlink"].guiActive = true;
@@ -342,6 +405,7 @@ namespace ActiveStruts
                     else
                     {
                         this.Events["Link"].active = this.Events["Link"].guiActive = true;
+                        this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = true;
                         this.Events["AbortLink"].active = this.Events["AbortLink"].guiActive = false;
                         if ((this.Target != null && this.Target.IsConnectionFree) || (this.Targeter != null && this.Targeter.IsConnectionFree))
                         {
@@ -362,6 +426,7 @@ namespace ActiveStruts
                         this.Events["Link"].active = this.Events["Link"].guiActive = false;
                     }
                     this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
+                    this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = false;
                 }
                     break;
                 case Mode.Targeting:
@@ -369,53 +434,10 @@ namespace ActiveStruts
                     this.Events["Link"].active = this.Events["Link"].guiActive = false;
                     this.Events["AbortLink"].active = this.Events["AbortLink"].guiActive = true;
                     this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
+                    this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = false;
                 }
                     break;
             }
-        }
-
-        public void SetTargetedBy(ModuleActiveStrut targeter)
-        {
-            this.Targeter = targeter;
-            this.Mode = Mode.Target;
-            this.part.SetHighlightColor(Color.green);
-            this.part.SetHighlight(true);
-        }
-
-        public void CreateJoint(Rigidbody originBody, Rigidbody targetBody, LinkType type)
-        {
-            this._joint = originBody.gameObject.AddComponent<ConfigurableJoint>();
-            this._joint.connectedBody = targetBody;
-            this._joint.breakForce = this._joint.breakTorque = type.GetJointStrength();
-            this._joint.xMotion = ConfigurableJointMotion.Locked;
-            this._joint.yMotion = ConfigurableJointMotion.Locked;
-            this._joint.zMotion = ConfigurableJointMotion.Locked;
-            this._joint.angularXMotion = ConfigurableJointMotion.Locked;
-            this._joint.angularYMotion = ConfigurableJointMotion.Locked;
-            this._joint.angularZMotion = ConfigurableJointMotion.Locked;
-            this.LinkType = type;
-            this.Target.LinkType = type;
-        }
-
-        public void CreateStrut(Vector3 target, float distancePercent = 1)
-        {
-            var strut = this.Strut;
-            strut.LookAt(target);
-            strut.localScale = new Vector3(1, 1, 1);
-            var distance = -1*Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(target))*distancePercent;
-            this.Strut.localScale = new Vector3(1, 1, distance);
-        }
-
-        public void DestroyJoint()
-        {
-            Destroy(this._joint);
-            this._joint = null;
-            this.LinkType = LinkType.None;
-        }
-
-        public void DestroyStrut()
-        {
-            this.Strut.localScale = Vector3.zero;
         }
     }
 }

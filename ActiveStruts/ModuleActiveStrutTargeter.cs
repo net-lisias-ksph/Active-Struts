@@ -473,7 +473,7 @@ namespace ActiveStruts
                     {
                         this.Events["Link"].active = this.Events["Link"].guiActive = true;
                         this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = true;
-                        if (TargetID != Guid.Empty && (!Target.HasPartner || !Target.ConnectionInUse()))
+                        if (this.TargetID != Guid.Empty && (!this.Target.HasPartner || !this.Target.ConnectionInUse()))
                         {
                             this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
                         }
@@ -498,7 +498,7 @@ namespace ActiveStruts
                 }
                     break;
             }
-            this.State = StateManager.DisplayMode;
+            this.State = this.StateManager.DisplayMode;
         }
 
         public void UpdateLink()

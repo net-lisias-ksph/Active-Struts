@@ -1,30 +1,37 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace ActiveStruts
 {
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class ActiveStrutsAddon : MonoBehaviour
     {
-        public static AddonMode Mode { get; set; }
-        public static ModuleActiveStrut CurrentTargeter { get; set; }
         private static GameObject _connector;
+        public static ModuleActiveStrut CurrentTargeter { get; set; }
+        public static AddonMode Mode { get; set; }
         public static Vector3 Origin { get; set; }
 
-        // ReSharper disable once InconsistentNaming
-        public void OnGUI()
+        private void ActionMenuClosed(Part data)
         {
-            OSD.Update();
+            if (!_checkForModule(data))
+            {
+                return;
+            }
+            var module = data.Modules[Config.ModuleName] as ModuleActiveStrut;
+            if (module == null)
+            {
+                return;
+            }
+            if (module.IsConnectionOrigin && module.Target != null && module.Target.part.vessel == data.vessel)
+            {
+                module.Target.part.SetHighlightDefault();
+            }
+            else if (!module.IsConnectionOrigin && module.Targeter != null && module.Targeter.vessel == data.vessel)
+            {
+                module.Targeter.part.SetHighlightDefault();
+            }
         }
 
-        public void OnDestroy()
-        {
-            GameEvents.onPartActionUICreate.Remove(this.ActionMenuCreated);
-            GameEvents.onPartActionUIDismiss.Remove(this.ActionMenuClosed);
-        }
+        // ReSharper disable once InconsistentNaming
 
         //must not be static
         private void ActionMenuCreated(Part data)
@@ -50,6 +57,40 @@ namespace ActiveStruts
             }
         }
 
+        private static bool IsValidPosition(RaycastResult raycast)
+        {
+            var valid = raycast.HitResult && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= Config.MaxDistance && raycast.RayAngle <= Config.MaxAngle;
+            switch (Mode)
+            {
+                case AddonMode.Link:
+                {
+                    var moduleActiveStrut = raycast.HittedPart.Modules[Config.ModuleName] as ModuleActiveStrut;
+                    if (moduleActiveStrut != null)
+                    {
+                        valid = valid && raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(Config.ModuleName) && moduleActiveStrut.IsConnectionFree;
+                    }
+                }
+                    break;
+                case AddonMode.FreeAttach:
+                {
+                    valid = valid && raycast.HittedPart != null && !raycast.HittedPart.Modules.Contains(Config.ModuleName);
+                }
+                    break;
+            }
+            return valid;
+        }
+
+        public void OnDestroy()
+        {
+            GameEvents.onPartActionUICreate.Remove(this.ActionMenuCreated);
+            GameEvents.onPartActionUIDismiss.Remove(this.ActionMenuClosed);
+        }
+
+        public void OnGUI()
+        {
+            OSD.Update();
+        }
+
         public void Start()
         {
             GameEvents.onPartActionUICreate.Add(this.ActionMenuCreated);
@@ -66,26 +107,6 @@ namespace ActiveStruts
         }
 
         //must not be static
-        private void ActionMenuClosed(Part data)
-        {
-            if (!_checkForModule(data))
-            {
-                return;
-            }
-            var module = data.Modules[Config.ModuleName] as ModuleActiveStrut;
-            if (module == null)
-            {
-                return;
-            }
-            if (module.IsConnectionOrigin && module.Target != null && module.Target.part.vessel == data.vessel)
-            {
-                module.Target.part.SetHighlightDefault();
-            }
-            else if (!module.IsConnectionOrigin && module.Targeter != null && module.Targeter.vessel == data.vessel)
-            {
-                module.Targeter.part.SetHighlightDefault();
-            }
-        }
 
         public void Update()
         {
@@ -110,7 +131,34 @@ namespace ActiveStruts
             _processUserInput(mp, raycast, validPos);
         }
 
-        private void _processUserInput(Vector3 mp, RaycastResult raycast, bool validPos)
+        private static bool _checkForModule(Part part)
+        {
+            return part.Modules.Contains(Config.ModuleName);
+        }
+
+        private static bool _determineColor(Vector3 mp, RaycastResult raycast)
+        {
+            var validPosition = IsValidPosition(raycast);
+            var mr = _connector.GetComponent<MeshRenderer>();
+            mr.material.color = Util.MakeColorTransparent(validPosition ? Color.green : Color.red);
+            return validPosition;
+        }
+
+        private static void _pointToMousePosition(Vector3 mp)
+        {
+            _connector.SetActive(true);
+            var trans = _connector.transform;
+            trans.position = CurrentTargeter.Origin.position;
+            trans.LookAt(mp);
+            trans.localScale = new Vector3(trans.position.x, trans.position.y, 1);
+            var dist = Vector3.Distance(Vector3.zero, trans.InverseTransformPoint(mp))/2.0f;
+            trans.localScale = new Vector3(0.05f, dist, 0.05f);
+            trans.Rotate(new Vector3(0, 0, 1), 90f);
+            trans.Rotate(new Vector3(1, 0, 0), 90f);
+            trans.Translate(new Vector3(0f, dist, 0f));
+        }
+
+        private static void _processUserInput(Vector3 mp, RaycastResult raycast, bool validPos)
         {
             switch (Mode)
             {
@@ -131,72 +179,24 @@ namespace ActiveStruts
                     {
                         CurrentTargeter.AbortLink();
                     }
-                
                 }
                     break;
                 case AddonMode.FreeAttach:
                 {
-                    if (Input.GetKeyDown(KeyCode.Mouse1))
+                    if (Input.GetKeyDown(KeyCode.Mouse0))
                     {
-                        //TODO abort free attach
+                        if (validPos)
+                        {
+                            CurrentTargeter.PlaceFreeAttach(raycast.HittedPart, mp);
+                        }
                     }
-                    else if (Input.GetKeyDown(KeyCode.Mouse0))
+                    else if (Input.GetKeyDown(KeyCode.Mouse1))
                     {
-                        //TODO place free attach
+                        Mode = AddonMode.None;
                     }
                 }
                     break;
             }
-        }
-
-        private static bool _determineColor(Vector3 mp, RaycastResult raycast)
-        {
-            var validPosition = IsValidPosition(raycast);
-            var mr = _connector.GetComponent<MeshRenderer>();
-            mr.material.color = Util.MakeColorTransparent(validPosition ? Color.green : Color.red);
-            return validPosition;
-        }
-
-        private static bool IsValidPosition(RaycastResult raycast)
-        {
-            var valid = raycast.HitResult && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= Config.MaxDistance && raycast.RayAngle <= Config.MaxAngle;
-            switch (Mode)
-            {
-                case AddonMode.Link:
-                {
-                    var moduleActiveStrut = raycast.HittedPart.Modules[Config.ModuleName] as ModuleActiveStrut;
-                    if (moduleActiveStrut != null)
-                    {
-                        valid = valid && raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(Config.ModuleName) && moduleActiveStrut.IsConnectionFree;
-                    }
-                }
-                    break;
-                case AddonMode.FreeAttach:
-                {
-                    valid = valid && raycast.HittedPart != null && !raycast.HittedPart.Modules.Contains(Config.ModuleName);
-                }
-                    break;
-            }
-            return valid;
-        }
-
-        private static void _pointToMousePosition(Vector3 mp)
-        {
-            _connector.SetActive(true);
-            var trans = _connector.transform;
-            trans.position = CurrentTargeter.Origin.position;
-            trans.LookAt(mp);
-            trans.localScale = new Vector3(trans.position.x, trans.position.y, 1);
-            var dist = Vector3.Distance(Vector3.zero, trans.InverseTransformPoint(mp))/2.0f;
-            trans.localScale = new Vector3(0.05f, dist, 0.05f);
-            trans.Rotate(new Vector3(0, 0, 1), 90f);
-            trans.Rotate(new Vector3(1, 0, 0), 90f);
-            trans.Translate(new Vector3(0f, dist, 0f));
-        }
-
-        private static bool _checkForModule(Part part)
-        {
-            return part.Modules.Contains(Config.ModuleName);
         }
     }
 
