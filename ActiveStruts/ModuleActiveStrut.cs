@@ -148,8 +148,8 @@ namespace ActiveStruts
         public void FreeAttach()
         {
             OSD.Info(Config.FreeAttachHelpText);
-            ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
             ActiveStrutsAddon.CurrentTargeter = this;
+            ActiveStrutsAddon.Mode = AddonMode.FreeAttach;           
         }
 
         [KSPEvent(name = "Link", active = false, guiName = "Link", guiActiveUnfocused = true, unfocusedRange = 50)]
@@ -160,7 +160,6 @@ namespace ActiveStruts
             {
                 possibleTarget.SetTargetedBy(this);
                 possibleTarget.UpdateGui();
-                Debug.Log("[AS] setting " + possibleTarget.ID + " as target");
             }
             ActiveStrutsAddon.Mode = AddonMode.Link;
             ActiveStrutsAddon.CurrentTargeter = this;

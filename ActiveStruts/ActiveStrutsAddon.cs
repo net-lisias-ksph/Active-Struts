@@ -124,6 +124,12 @@ namespace ActiveStruts
                 if (Mode == AddonMode.Link && Input.GetKeyDown(KeyCode.Mouse0))
                 {
                     CurrentTargeter.AbortLink();
+                    CurrentTargeter.UpdateGui();
+                }
+                if (Mode == AddonMode.FreeAttach && Input.GetKeyDown(KeyCode.Mouse1))
+                {
+                    Mode = AddonMode.None;
+                    CurrentTargeter.UpdateGui();
                 }
                 _connector.SetActive(false);
                 return;

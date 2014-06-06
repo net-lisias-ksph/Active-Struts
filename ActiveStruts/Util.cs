@@ -121,9 +121,7 @@ namespace ActiveStruts
             {
                 return false;
             }
-            Debug.Log("[AS] now raycasting " + possibleTarget.ID);
             var raycast = PerformRaycast(origin.Origin.position, possibleTarget.Origin.position, origin.Origin.right);
-            Debug.Log("[AS] now checking: " + string.Format("hitresult={0} hittedpart={1} distance={2} hitcurrentvessel={3}", raycast.HitResult, raycast.HittedPart.name, raycast.DistanceFromOrigin, raycast.HitCurrentVessel));
             return raycast.HitResult && raycast.HittedPart == possibleTarget.part && raycast.DistanceFromOrigin <= Config.MaxDistance && raycast.RayAngle <= Config.MaxAngle && raycast.HitCurrentVessel;
         }
 
@@ -154,14 +152,12 @@ namespace ActiveStruts
 
         public static RaycastResult PerformRaycast(Vector3 origin, Vector3 target, Vector3 originUp)
         {
-            Debug.Log("[AS] raycast: from " + origin.ToDebugString() + " to " + target.ToDebugString() + " with originup " + originUp.ToDebugString());
             RaycastHit info;
             var dir = (target - origin).normalized;
             var ray = new Ray(origin, dir);
             var hit = Physics.Raycast(ray, out info, Config.MaxDistance + 1);
             var hittedPart = hit ? PartFromHit(info) : null;
             var angle = Vector3.Angle(dir, originUp);
-            Debug.Log("[AS] raycast result: " + hit + " with angle " + angle);
             return new RaycastResult
                    {
                        DistanceFromOrigin = info.distance,
