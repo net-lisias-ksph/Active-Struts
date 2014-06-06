@@ -51,7 +51,7 @@ namespace ActiveStruts
         [KSPEvent(name = "SetAsTarget", active = false, guiName = "Set as Target", guiActiveUnfocused = true, unfocusedRange = 50)]
         public void SetAsTarget()
         {
-            ConnectorManager.Deactivate();
+            ActiveStrutsConnectorManagerAddon.Deactivate();
             this._targeter.SetTarget(this, ASUtil.Tuple.New(this.HasPartner, this.Partner as ModuleActiveStrutTargeter));
             this.Mode = ASMode.Linked;
             foreach (var moduleDockingStrut in ASUtil.GetAllActiveStrutsModules(this.vessel))

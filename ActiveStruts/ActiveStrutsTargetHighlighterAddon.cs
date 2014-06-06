@@ -3,7 +3,7 @@
 namespace ActiveStruts
 {
     [KSPAddon(KSPAddon.Startup.Flight, false)]
-    public class TargetHighlighter : MonoBehaviour
+    public class ActiveStrutsTargetHighlighterAddon : MonoBehaviour
     {
         public void ActionMenuClosed(Part data)
         {

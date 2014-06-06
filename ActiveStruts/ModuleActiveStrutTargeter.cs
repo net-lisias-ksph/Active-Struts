@@ -142,7 +142,7 @@ namespace ActiveStruts
         [KSPEvent(name = "Abort", active = false, guiName = "Abort link", guiActiveUnfocused = true, unfocusedRange = 50)]
         public void Abort()
         {
-            ConnectorManager.Deactivate();
+            ActiveStrutsConnectorManagerAddon.Deactivate();
             ASUtil.RestoreEventsOnAllTargeters();
             this.Mode = ASMode.Unlinked;
             foreach (var moduleDockingStrut in ASUtil.GetAllActiveStrutsModules(this.vessel))
@@ -154,7 +154,7 @@ namespace ActiveStruts
 
         public void AbortAttachRequest()
         {
-            ConnectorManager.Deactivate();
+            ActiveStrutsConnectorManagerAddon.Deactivate();
             OSD.Info("Free attachment aborted.");
             this.IsFreeAttached = false;
             this.IsLinked = false;
@@ -165,7 +165,7 @@ namespace ActiveStruts
 
         private void ActivateLineRender(bool listenForLeftClick = false)
         {
-            ConnectorManager.Activate(this, this.part.Rigidbody.position, listenForLeftClick);
+            ActiveStrutsConnectorManagerAddon.Activate(this, this.part.Rigidbody.position, listenForLeftClick);
         }
 
         public void ClearStrut()
@@ -205,7 +205,7 @@ namespace ActiveStruts
                 return;
             }
             this._createFreeAttachment(mpd);
-            ConnectorManager.Deactivate();
+            ActiveStrutsConnectorManagerAddon.Deactivate();
         }
 
         [KSPEvent(name = "Link", active = false, guiName = "Link", guiActiveUnfocused = true, unfocusedRange = 50)]

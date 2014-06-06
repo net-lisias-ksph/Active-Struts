@@ -47,16 +47,24 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ActiveStrutsAddon.cs" />
+    <Compile Include="ActiveStrutsOSDAddon.cs" />
     <Compile Include="ASMode.cs" />
     <Compile Include="ASUtil.cs" />
-    <Compile Include="ConnectorManager.cs" />
+    <Compile Include="ActiveStrutsConnectorManagerAddon.cs" />
+    <Compile Include="Config.cs" />
     <Compile Include="LinkType.cs" />
+    <Compile Include="Mode.cs" />
+    <Compile Include="ModuleActiveStrut.cs" />
     <Compile Include="ModuleActiveStrutBase.cs" />
     <Compile Include="ModuleActiveStrutTarget.cs" />
     <Compile Include="ModuleActiveStrutTargeter.cs" />
-    <Compile Include="OSDInfo.cs" />
+    <Compile Include="MousePositionData.cs" />
+    <Compile Include="OSD.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="TargetHighlighter.cs" />
+    <Compile Include="ActiveStrutsTargetHighlighterAddon.cs" />
+    <Compile Include="Tuple.cs" />
+    <Compile Include="Util.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="License.txt">

@@ -3,7 +3,7 @@
 namespace ActiveStruts
 {
     [KSPAddon(KSPAddon.Startup.Flight, false)]
-    public class ConnectorManager : MonoBehaviour
+    public class ActiveStrutsConnectorManagerAddon : MonoBehaviour
     {
         private const float ConnectorDimension = 0.05f;
         private const string _path = "ActiveStruts/IR_LoneStrut/";
