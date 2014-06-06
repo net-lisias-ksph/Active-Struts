@@ -28,6 +28,9 @@ namespace ActiveStruts
         private LinkType _linkType;
         private Mode _mode = Mode.Undefined;
         private int _ticksForDelayedStart;
+        private Vector3 _freeAttachTargetLocalVector;
+        private float _freeAttachTargetLocalDistance;
+        private int _strutRealignCounter;
 
         private Part FreeAttachPart
         {
@@ -189,6 +192,7 @@ namespace ActiveStruts
             }
             this._delayedStartFlag = true;
             this._ticksForDelayedStart = Config.StartDelay;
+            this._strutRealignCounter = Config.StrutRealignInterval;
         }
 
         public override void OnUpdate()
@@ -197,6 +201,18 @@ namespace ActiveStruts
             {
                 this._delayedStart();
                 return;
+            }
+            if (this.IsLinked)
+            {
+                if (_strutRealignCounter > 0)
+                {
+                    _strutRealignCounter--;
+                }
+                else
+                {
+                    _strutRealignCounter = Config.StrutRealignInterval;
+                    _realignStrut();
+                }
             }
             if (this.Mode == Mode.Unlinked || this.Mode == Mode.Target || this.Mode == Mode.Targeting)
             {
@@ -245,6 +261,36 @@ namespace ActiveStruts
             }
         }
 
+        private void _realignStrut()
+        {
+            if (this.IsFreeAttached)
+            {
+                Debug.Log("[AS] realigning freeattach strut");
+                var targetPos = Util.GetNewWorldPosForFreeAttachTarget(this._freeAttachPart, this._freeAttachTargetLocalVector, this._freeAttachTargetLocalDistance);
+                var strutLength = Vector3.Distance(targetPos, this.Origin.position);
+                this.DestroyStrut();
+                this.CreateStrut(targetPos, strutLength);
+            }
+            else if (!this.IsTargetOnly)
+            {
+                if (this.Target == null)
+                {
+                    return;
+                }
+                this.DestroyStrut();
+                if (this.Target.IsTargetOnly)
+                {
+                    this.CreateStrut(this.Target.Origin.position);
+                }
+                else
+                {
+                    this.Target.DestroyStrut();
+                    this.CreateStrut(this.Target.Origin.position, 0.5f);
+                    this.Target.CreateStrut(this.Origin.position, 0.5f);
+                }
+            }
+        }
+
         public void PlaceFreeAttach(Part hittedPart, Vector3 hitPosition, float distance)
         {
             this.Mode = Mode.Linked;
@@ -260,6 +306,10 @@ namespace ActiveStruts
             ActiveStrutsAddon.Mode = AddonMode.None;
             OSD.Success("FreeAttach Link established!");
             this.UpdateGui();
+            this._freeAttachTargetLocalVector = hitPosition - hittedPart.transform.position;
+            this._freeAttachTargetLocalDistance = Vector3.Distance(hittedPart.transform.position, hitPosition);
+            Debug.Log("[AS] freeattach realign data: vector=" + this._freeAttachTargetLocalVector.ToDebugString() + " distance=" + this._freeAttachTargetLocalDistance);
+            Debug.Log("[AS] original free attach point = " + hitPosition.ToDebugString());
         }
 
         private void Reconnect()

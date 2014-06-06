@@ -185,5 +185,13 @@ namespace ActiveStruts
         {
             return string.Format("[x:{0}, y:{1}, z:{2}]", vector.x, vector.y, vector.z);
         }
+
+        public static Vector3 GetNewWorldPosForFreeAttachTarget(Part freeAttachPart, Vector3 freeAttachTargetLocalVector, float freeAttachTargetLocalDistance)
+        {
+            var newPoint = freeAttachPart.transform.position + freeAttachTargetLocalVector*freeAttachTargetLocalDistance;
+            //var newPoint = freeAttachPart.transform.position + freeAttachTargetLocalVector;
+            Debug.Log("[AS] the new point would be: " + newPoint.ToDebugString());
+            return newPoint;
+        }
     }
 }

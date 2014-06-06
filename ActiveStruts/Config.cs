@@ -15,5 +15,6 @@
         public const float FreeAttachDistanceTolerance = 0.1f;
         public const float FreeAttachStrutExtension = 0.05f;
         public const int StartDelay = 60;
+        public const int StrutRealignInterval = 120;
     }
 }
