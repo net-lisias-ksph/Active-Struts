@@ -31,11 +31,11 @@ namespace ActiveStruts.Addons
         private void ProcessPartAttach(GameEvents.HostTargetAction<Part, Part> data)
         {
             var attachedPart = data.host;
-            if (!attachedPart.Modules.Contains(Config.ModuleName))
+            if (!attachedPart.Modules.Contains(Config.Instance.ModuleName))
             {
                 return;
             }
-            var module = attachedPart.Modules[Config.ModuleName] as ModuleActiveStrut;
+            var module = attachedPart.Modules[Config.Instance.ModuleName] as ModuleActiveStrut;
             _modules.Add(module);
             ResetActiveStrutToDefault(module);
         }
@@ -43,9 +43,9 @@ namespace ActiveStruts.Addons
         private void ProcessPartRemove(GameEvents.HostTargetAction<Part, Part> data)
         {
             var removedPart = data.target;
-            if (removedPart.Modules.Contains(Config.ModuleName))
+            if (removedPart.Modules.Contains(Config.Instance.ModuleName))
             {
-                _modules.Remove(removedPart.Modules[Config.ModuleName] as ModuleActiveStrut);
+                _modules.Remove(removedPart.Modules[Config.Instance.ModuleName] as ModuleActiveStrut);
             }
         }
 

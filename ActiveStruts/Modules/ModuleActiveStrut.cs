@@ -176,7 +176,7 @@ namespace ActiveStruts.Modules
             var distance = -1*Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(target))*distancePercent;
             if (this.IsFreeAttached)
             {
-                distance -= Config.FreeAttachStrutExtension;
+                distance -= Config.Instance.FreeAttachStrutExtension;
             }
             this.Strut.localScale = new Vector3(1, 1, distance);
         }
@@ -198,9 +198,9 @@ namespace ActiveStruts.Modules
         {
             if (HighLogic.LoadedSceneIsEditor)
             {
-                InputLockManager.SetControlLock(EditorLockMask, Config.EditorInputLockId);
+                InputLockManager.SetControlLock(EditorLockMask, Config.Instance.EditorInputLockId);
             }
-            OSD.Info(Config.FreeAttachHelpText);
+            OSD.Info(Config.Instance.FreeAttachHelpText);
             ActiveStrutsAddon.CurrentTargeter = this;
             ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
         }
@@ -210,7 +210,7 @@ namespace ActiveStruts.Modules
         {
             var ray = new Ray(this.Origin.position, this.Origin.transform.right);
             RaycastHit info;
-            var raycast = Physics.Raycast(ray, out info, Config.MaxDistance);
+            var raycast = Physics.Raycast(ray, out info, Config.Instance.MaxDistance);
             if (raycast)
             {
                 var hittedPart = info.PartFromHit();
@@ -244,7 +244,7 @@ namespace ActiveStruts.Modules
         {
             if (HighLogic.LoadedSceneIsEditor)
             {
-                InputLockManager.SetControlLock(EditorLockMask, Config.EditorInputLockId);
+                InputLockManager.SetControlLock(EditorLockMask, Config.Instance.EditorInputLockId);
             }
             this.Mode = Mode.Targeting;
             foreach (var possibleTarget in this.GetAllPossibleTargets())
@@ -254,7 +254,7 @@ namespace ActiveStruts.Modules
             }
             ActiveStrutsAddon.Mode = AddonMode.Link;
             ActiveStrutsAddon.CurrentTargeter = this;
-            OSD.Info(Config.LinkHelpText, 5);
+            OSD.Info(Config.Instance.LinkHelpText, 5);
             this.UpdateGui();
         }
 
@@ -278,8 +278,8 @@ namespace ActiveStruts.Modules
                 _ticksForDelayedStart = 0;
             }
             this._delayedStartFlag = true;
-            this._ticksForDelayedStart = Config.StartDelay;
-            this._strutRealignCounter = Config.StrutRealignInterval;
+            this._ticksForDelayedStart = Config.Instance.StartDelay;
+            this._strutRealignCounter = Config.Instance.StrutRealignInterval;
         }
 
         public override void OnUpdate()
@@ -306,7 +306,7 @@ namespace ActiveStruts.Modules
                 }
                 else
                 {
-                    this._strutRealignCounter = Config.StrutRealignInterval;
+                    this._strutRealignCounter = Config.Instance.StrutRealignInterval;
                     this._realignStrut();
                 }
             }
@@ -384,13 +384,24 @@ namespace ActiveStruts.Modules
         {
             if (this.IsFreeAttached)
             {
+                Debug.Log("[AS] saved coords: " + this.FreeAttachPoint);
                 var rayRes = this.CheckFreeAttachPoint();
                 if (!rayRes.HitResult)
                 {
+                    if (rayRes.TargetPart != null)
+                    {
+                        Debug.Log("[AS] hitted part; " + rayRes.TargetPart.transform.position);
+                    }
                     this.IsFreeAttached = false;
+                    this.Mode = Mode.Unlinked;
+                    this.IsConnectionOrigin = false;
+                    this.LinkType = LinkType.None;
+                    this.UpdateGui();
                     return;
                 }
+                Debug.Log("[AS] reconnecting to coords: " + rayRes.TargetPart.transform.position);
                 this.PlaceFreeAttach(rayRes.TargetPart, this.FreeAttachPoint, this.FreeAttachDistance);
+                this.UpdateGui();
                 return;
             }
             if (this.IsConnectionOrigin)

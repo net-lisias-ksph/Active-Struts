@@ -25,7 +25,7 @@ namespace ActiveStruts.Addons
             {
                 return;
             }
-            var module = data.Modules[Config.ModuleName] as ModuleActiveStrut;
+            var module = data.Modules[Config.Instance.ModuleName] as ModuleActiveStrut;
             if (module == null)
             {
                 return;
@@ -47,7 +47,7 @@ namespace ActiveStruts.Addons
             {
                 return;
             }
-            var module = data.Modules[Config.ModuleName] as ModuleActiveStrut;
+            var module = data.Modules[Config.Instance.ModuleName] as ModuleActiveStrut;
             if (module == null)
             {
                 return;
@@ -70,24 +70,24 @@ namespace ActiveStruts.Addons
 
         private static bool IsValidPosition(RaycastResult raycast)
         {
-            var valid = raycast.HitResult && raycast.HittedPart != null && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= Config.MaxDistance && raycast.RayAngle <= Config.MaxAngle;
+            var valid = raycast.HitResult && raycast.HittedPart != null && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= Config.Instance.MaxDistance && raycast.RayAngle <= Config.Instance.MaxAngle;
             switch (Mode)
             {
                 case AddonMode.Link:
                 {
-                    if (raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(Config.ModuleName))
+                    if (raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(Config.Instance.ModuleName))
                     {
-                        var moduleActiveStrut = raycast.HittedPart.Modules[Config.ModuleName] as ModuleActiveStrut;
+                        var moduleActiveStrut = raycast.HittedPart.Modules[Config.Instance.ModuleName] as ModuleActiveStrut;
                         if (moduleActiveStrut != null)
                         {
-                            valid = valid && raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(Config.ModuleName) && moduleActiveStrut.IsConnectionFree;
+                            valid = valid && raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(Config.Instance.ModuleName) && moduleActiveStrut.IsConnectionFree;
                         }
                     }
                 }
                     break;
                 case AddonMode.FreeAttach:
                 {
-                    valid = valid && !raycast.HittedPart.Modules.Contains(Config.ModuleName);
+                    valid = valid && !raycast.HittedPart.Modules.Contains(Config.Instance.ModuleName);
                 }
                     break;
             }
@@ -119,7 +119,7 @@ namespace ActiveStruts.Addons
             _connector = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             _connector.name = "ASConn";
             DestroyImmediate(_connector.collider);
-            _connector.transform.localScale = new Vector3(Config.ConnectorDimension, Config.ConnectorDimension, Config.ConnectorDimension);
+            _connector.transform.localScale = new Vector3(Config.Instance.ConnectorDimension, Config.Instance.ConnectorDimension, Config.Instance.ConnectorDimension);
             var mr = _connector.GetComponent<MeshRenderer>();
             mr.name = "ASConn";
             mr.material = new Material(Shader.Find("Transparent/Diffuse")) {color = Util.Util.MakeColorTransparent(Color.green)};
@@ -185,7 +185,7 @@ namespace ActiveStruts.Addons
                 if (HighLogic.LoadedSceneIsEditor && handled)
                 {
                     Input.ResetInputAxes();
-                    InputLockManager.RemoveControlLock(Config.EditorInputLockId);
+                    InputLockManager.RemoveControlLock(Config.Instance.EditorInputLockId);
                 }
                 return;
             }
@@ -195,7 +195,7 @@ namespace ActiveStruts.Addons
 
         private static bool _checkForModule(Part part)
         {
-            return part.Modules.Contains(Config.ModuleName);
+            return part.Modules.Contains(Config.Instance.ModuleName);
         }
 
         private static bool _determineColor(Vector3 mp, RaycastResult raycast)
@@ -241,7 +241,7 @@ namespace ActiveStruts.Addons
                     {
                         if (validPos)
                         {
-                            var moduleActiveStrut = raycast.HittedPart.Modules[Config.ModuleName] as ModuleActiveStrut;
+                            var moduleActiveStrut = raycast.HittedPart.Modules[Config.Instance.ModuleName] as ModuleActiveStrut;
                             if (moduleActiveStrut != null)
                             {
                                 moduleActiveStrut.SetAsTarget();
@@ -277,7 +277,7 @@ namespace ActiveStruts.Addons
             if (HighLogic.LoadedSceneIsEditor && handled)
             {
                 Input.ResetInputAxes();
-                InputLockManager.RemoveControlLock(Config.EditorInputLockId);
+                InputLockManager.RemoveControlLock(Config.Instance.EditorInputLockId);
             }
         }
     }

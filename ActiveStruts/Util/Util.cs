@@ -34,6 +34,7 @@ namespace ActiveStruts.Util
         public static FreeAttachTargetCheck CheckFreeAttachPoint(this ModuleActiveStrut origin)
         {
             var raycast = PerformRaycast(origin.Origin.position, origin.FreeAttachPoint, origin.Origin.right);
+            Debug.Log("[AS] checkfreepoint: " + origin.Origin.position + " " + origin.FreeAttachPoint + " " + origin.Origin.right);
             if (raycast.HitResult)
             {
                 var distOk = DistanceInToleranceRange(origin.FreeAttachDistance, raycast.DistanceFromOrigin);
@@ -52,15 +53,15 @@ namespace ActiveStruts.Util
 
         public static bool DistanceInToleranceRange(float savedDistance, float currentDistance)
         {
-            return currentDistance >= savedDistance - Config.FreeAttachDistanceTolerance && currentDistance <= savedDistance + Config.FreeAttachDistanceTolerance &&
-                   currentDistance <= Config.MaxDistance;
+            return currentDistance >= savedDistance - Config.Instance.FreeAttachDistanceTolerance && currentDistance <= savedDistance + Config.Instance.FreeAttachDistanceTolerance &&
+                   currentDistance <= Config.Instance.MaxDistance;
         }
 
         public static List<ModuleActiveStrut> GetAllActiveStruts()
         {
             if (HighLogic.LoadedSceneIsFlight)
             {
-                return FlightGlobals.ActiveVessel.Parts.Where(p => p.Modules.Contains(Config.ModuleName)).Select(p => p.Modules[Config.ModuleName] as ModuleActiveStrut).ToList();
+                return FlightGlobals.ActiveVessel.Parts.Where(p => p.Modules.Contains(Config.Instance.ModuleName)).Select(p => p.Modules[Config.Instance.ModuleName] as ModuleActiveStrut).ToList();
             }
             return HighLogic.LoadedSceneIsEditor ? ActiveStrutsEditorAddon.GetAllActiveStruts() : new List<ModuleActiveStrut>();
         }
@@ -80,15 +81,15 @@ namespace ActiveStruts.Util
                 }
                 case LinkType.Normal:
                 {
-                    return Config.NormalJointStrength;
+                    return Config.Instance.NormalJointStrength;
                 }
                 case LinkType.Maximal:
                 {
-                    return Config.MaximalJointStrength;
+                    return Config.Instance.MaximalJointStrength;
                 }
                 case LinkType.Weak:
                 {
-                    return Config.WeakJointStrength;
+                    return Config.Instance.WeakJointStrength;
                 }
             }
             return 0;
@@ -98,7 +99,7 @@ namespace ActiveStruts.Util
         {
             var ray = HighLogic.LoadedSceneIsFlight ? FlightCamera.fetch.mainCamera.ScreenPointToRay(Input.mousePosition) : Camera.main.ScreenPointToRay(Input.mousePosition);
             RaycastHit hit;
-            return Physics.Raycast(ray, out hit, Config.MaxDistance) ? hit.point : Vector3.zero;
+            return Physics.Raycast(ray, out hit, Config.Instance.MaxDistance) ? hit.point : Vector3.zero;
         }
 
         public static Vector3 GetNewWorldPosForFreeAttachTarget(Part freeAttachPart, Vector3 freeAttachTargetLocalVector)
@@ -129,7 +130,7 @@ namespace ActiveStruts.Util
         public static bool IsPossibleFreeAttachTarget(this ModuleActiveStrut origin, Vector3 mousePosition)
         {
             var raycast = PerformRaycast(origin.Origin.position, mousePosition, origin.Origin.right);
-            return raycast.HitResult && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= Config.MaxDistance && raycast.RayAngle <= Config.MaxAngle;
+            return raycast.HitResult && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= Config.Instance.MaxDistance && raycast.RayAngle <= Config.Instance.MaxAngle;
         }
 
         public static bool IsPossibleTarget(this ModuleActiveStrut origin, ModuleActiveStrut possibleTarget)
@@ -139,13 +140,13 @@ namespace ActiveStruts.Util
                 return false;
             }
             var raycast = PerformRaycast(origin.Origin.position, possibleTarget.Origin.position, origin.Origin.right);
-            return raycast.HitResult && raycast.HittedPart == possibleTarget.part && raycast.DistanceFromOrigin <= Config.MaxDistance && raycast.RayAngle <= Config.MaxAngle && raycast.HitCurrentVessel;
+            return raycast.HitResult && raycast.HittedPart == possibleTarget.part && raycast.DistanceFromOrigin <= Config.Instance.MaxDistance && raycast.RayAngle <= Config.Instance.MaxAngle && raycast.HitCurrentVessel;
         }
 
         public static Color MakeColorTransparent(Color color)
         {
             var rgba = GetRgbaFromColor(color);
-            return new Color(rgba[0], rgba[1], rgba[2], Config.ColorTransparency);
+            return new Color(rgba[0], rgba[1], rgba[2], Config.Instance.ColorTransparency);
         }
 
         public static Part PartFromHit(this RaycastHit hit)
@@ -172,7 +173,7 @@ namespace ActiveStruts.Util
             RaycastHit info;
             var dir = (target - origin).normalized;
             var ray = new Ray(origin, dir);
-            var hit = Physics.Raycast(ray, out info, Config.MaxDistance + 1);
+            var hit = Physics.Raycast(ray, out info, Config.Instance.MaxDistance + 1);
             var hittedPart = hit ? PartFromHit(info) : null;
             var angle = Vector3.Angle(dir, originUp);
             return new RaycastResult

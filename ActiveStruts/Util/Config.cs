@@ -1,61 +1,184 @@
-﻿namespace ActiveStruts.Util
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Threading;
+
+namespace ActiveStruts.Util
 {
     public class Config
     {
-        public static float ColorTransparency = 0.5f;
-        public static float ConnectorDimension = 0.5f;
-        public static float FreeAttachDistanceTolerance = 0.1f;
-        public static string FreeAttachHelpText = "Click left on a valid position to establish a link. Press 'x' to abort.";
-        public static float FreeAttachStrutExtension = 0.05f;
-        public static string LinkHelpText = "Click left on a possible target to establish a link. Press 'x' to abort. You can also right click -> 'Set as Target' on a valid target and right click -> 'Abort' on the targeter.";
-        public static float MaxAngle = 95;
-        public static float MaxDistance = 15;
-        public static float MaximalJointStrength = 10000;
-        public static string ModuleName = "ModuleActiveStrut";
-        public static float NormalJointStrength = 1000;
-        public static int StartDelay = 60;
-        public static int StrutRealignInterval = 5;
-        public static float WeakJointStrength = 10;
-        public static string EditorInputLockId = "[AS] temp editor lock";
+        private class SettingsEntry
+        {
+            public object Value { get; set; }
+            public object DefaultValue { get; private set; }
 
-        //public void Load()
-        //{
-        //    var cfg = PluginConfiguration.CreateForType<Config>((Vessel) null);
-        //    cfg.load();
-        //    this.ModuleName = cfg.GetValue<string>("ModuleName");
-        //    this.MaxDistance = cfg.GetValue<int>("MaxDistance");
-        //    this.MaxAngle = cfg.GetValue<int>("MaxAngle");
-        //    this.WeakJointStrength = cfg.GetValue<int>("WeakJointStrength");
-        //    this.NormalJointStrength = cfg.GetValue<int>("NormalJointStrength");
-        //    this.MaximalJointStrength = cfg.GetValue<int>("MaximalJointStrength");
-        //    this.LinkHelpText = cfg.GetValue<string>("LinkHelpText");
-        //    this.FreeAttachHelpText = cfg.GetValue<string>("FreeAttachHelpText");
-        //    this.ConnectorDimension = cfg.GetValue<float>("ConectorDimension");
-        //    this.ColorTransparency = cfg.GetValue<float>("ColorTransparency");
-        //    this.FreeAttachDistanceTolerance = cfg.GetValue<float>("FreeAttachDistanceTolerance");
-        //    this.FreeAttachStrutExtension = cfg.GetValue<float>("FreeAttachStrutExtension");
-        //    this.StartDelay = cfg.GetValue<int>("StartDelay");
-        //    this.StrutRealignInterval = cfg.GetValue<int>("StrutRealignInterval");
-        //}
+            public SettingsEntry(object defaultValue)
+            {
+                this.DefaultValue = defaultValue;
+            }
+        }
 
-        //public void Save()
-        //{
-        //    var cfg = PluginConfiguration.CreateForType<Config>((Vessel) null);
-        //    cfg.SetValue("ModuleName", this.ModuleName);
-        //    cfg.SetValue("MaxDistance", this.MaxDistance);
-        //    cfg.SetValue("MaxAngle", this.MaxAngle);
-        //    cfg.SetValue("WeakJointStrength", this.WeakJointStrength);
-        //    cfg.SetValue("NormalJointStrength", this.NormalJointStrength);
-        //    cfg.SetValue("MaximalJointStrength", this.MaximalJointStrength);
-        //    cfg.SetValue("LinkHelptext", this.LinkHelpText);
-        //    cfg.SetValue("FreeAttachHelpText", this.FreeAttachHelpText);
-        //    cfg.SetValue("ConnectorDimension", this.ConnectorDimension);
-        //    cfg.SetValue("ColorTransparency", this.ColorTransparency);
-        //    cfg.SetValue("FreeAttachDistanceTolerance", this.FreeAttachDistanceTolerance);
-        //    cfg.SetValue("FreeAttachStrutExtension", this.FreeAttachStrutExtension);
-        //    cfg.SetValue("StartDelay", this.StartDelay);
-        //    cfg.SetValue("StrutRealignInterval", this.StrutRealignInterval);
-        //    cfg.save();
-        //}
+        public float ColorTransparency
+        {
+            get { return (float) _getValue<double>("ColorTransparency"); }
+        }
+
+        public float ConnectorDimension
+        {
+            get { return (float) _getValue<double>("ConnectorDimension"); }
+        }
+
+        public float FreeAttachDistanceTolerance
+        {
+            get { return (float) _getValue<double>("FreeAttachDistanceTolerance"); }
+        }
+
+        // ReSharper disable once InconsistentNaming
+        private const string _freeAttachHelpText = "Click left on a valid position to establish a link. Press 'x' to abort.";
+
+        public string FreeAttachHelpText
+        {
+            get { return _freeAttachHelpText; }
+        }
+
+        public float FreeAttachStrutExtension
+        {
+            get { return (float) _getValue<double>("FreeAttachStrutExtension"); }
+        }
+
+        // ReSharper disable once InconsistentNaming
+        private const string _linkHelpText = "Click left on a possible target to establish a link. Press 'x' to abort. You can also right click -> 'Set as Target' on a valid target and right click -> 'Abort' on the targeter.";
+
+        public string LinkHelpText
+        {
+            get { return _linkHelpText; }
+        }
+
+        public float MaxAngle
+        {
+            get { return (float) _getValue<double>("MaxAngle"); }
+        }
+
+        public float MaxDistance
+        {
+            get { return (float) _getValue<double>("MaxDistance"); }
+        }
+
+        public float MaximalJointStrength
+        {
+            get { return (float) _getValue<double>("MaximalJointStrength"); }
+        }
+
+        // ReSharper disable once InconsistentNaming
+        private const string _moduleName = "ModuleActiveStrut";
+
+        public string ModuleName
+        {
+            get { return _moduleName; }
+        }
+
+        public float NormalJointStrength
+        {
+            get { return (float) _getValue<double>("NormalJointStrength"); }
+        }
+
+        public int StartDelay
+        {
+            get { return _getValue<int>("StartDelay"); }
+        }
+
+        public int StrutRealignInterval
+        {
+            get { return _getValue<int>("StrutRealignInterval"); }
+        }
+
+        public float WeakJointStrength
+        {
+            get { return (float) _getValue<double>("WeakJointStrength"); }
+        }
+
+        // ReSharper disable once InconsistentNaming
+        private const string _editorInputLockId = "[AS] temp editor lock";
+
+        public string EditorInputLockId
+        {
+            get { return _editorInputLockId; }
+        }
+
+        private const string ConfigFilePath = "GameData/ActiveStruts/Plugin/ActiveStruts.cfg";
+        private const string SettingsNodeName = "ACTIVE_STRUTS_SETTINGS";
+        private static readonly Dictionary<string, SettingsEntry> Values = new Dictionary<string, SettingsEntry>
+                                                                           {
+                                                                               {"MaxDistance", new SettingsEntry(15)},
+                                                                               {"MaxAngle", new SettingsEntry(95)},
+                                                                               {"WeakJointStrength", new SettingsEntry(10)},
+                                                                               {"NormalJointStrength", new SettingsEntry(100)},
+                                                                               {"MaximalJointStrength", new SettingsEntry(1000)},
+                                                                               {"ConnectorDimension", new SettingsEntry(0.5f)},
+                                                                               {"ColorTransparency", new SettingsEntry(0.5f)},
+                                                                               {"FreeAttachDistanceTolerance", new SettingsEntry(0.1f)},
+                                                                               {"FreeAttachStrutExtension", new SettingsEntry(0.05f)},
+                                                                               {"StartDelay", new SettingsEntry(60)},
+                                                                               {"StrutRealignInterval", new SettingsEntry(5)}
+                                                                           };
+
+        private static Config _instance;
+
+        public static Config Instance
+        {
+            get { return _instance ?? (_instance = new Config()); }
+        }
+
+        private static T _getValue<T>(string key)
+        {
+            if (!Values.ContainsKey(key))
+            {
+                throw new ArgumentException();
+            }
+            var val = Values[key];
+            var ret = val.Value ?? val.DefaultValue;
+            return (T) Convert.ChangeType(ret, typeof(T));
+        }
+
+        private static bool _configFileExists()
+        {
+            return File.Exists(ConfigFilePath);
+        }
+
+        private static void _initialSave()
+        {
+            ConfigNode node = new ConfigNode(), settings = new ConfigNode(SettingsNodeName);
+            foreach (var settingsEntry in Values)
+            {
+                settings.AddValue(settingsEntry.Key, settingsEntry.Value.DefaultValue);
+            }
+            node.AddNode(settings);
+            node.Save(ConfigFilePath);
+        }
+
+        private static void _load()
+        {
+            var node = ConfigNode.Load(ConfigFilePath);
+            var settings = node.GetNode(SettingsNodeName);
+            foreach (var settingsEntry in Values)
+            {
+                var val = settings.GetValue(settingsEntry.Key);
+                if (val != null)
+                {
+                    settingsEntry.Value.Value = val;
+                }
+            }
+        }
+
+        private Config()
+        {
+            if (!_configFileExists())
+            {
+                _initialSave();
+                Thread.Sleep(500);
+            }
+            _load();
+        }
     }
 }

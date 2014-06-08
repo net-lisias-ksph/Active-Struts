@@ -8,12 +8,12 @@
     //    public void Awake()
     //    {
     //        Config = new Config();
-    //        Config.Load();
+    //        Config.Instance.Load();
     //    }
 
     //    public void OnDestroy()
     //    {
-    //        Config.Save();
+    //        Config.Instance.Save();
     //    }
     //}
 }
