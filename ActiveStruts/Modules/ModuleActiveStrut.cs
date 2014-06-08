@@ -32,9 +32,7 @@ namespace ActiveStruts.Modules
     public class ModuleActiveStrut : PartModule
     {
         private const ControlTypes EditorLockMask = ControlTypes.EDITOR_PAD_PICK_PLACE | ControlTypes.EDITOR_ICON_PICK;
-        [KSPField(isPersistant = true)] public float FreeAttachDistance = 0.0f;
-        [KSPField(isPersistant = true)] public string FreeAttachPointString = "0.0 0.0 0.0";
-        [KSPField(isPersistant = true)] public string FreeAttachTargetLocalVectorString = "0.0 0.0 0.0";
+        [KSPField(isPersistant = true)] public string FreeAttachTargetId = Guid.Empty.ToString();
         [KSPField(isPersistant = true)] public string Id = Guid.Empty.ToString();
         [KSPField(isPersistant = true)] public bool IsConnectionOrigin = false;
         [KSPField(isPersistant = true)] public bool IsFreeAttached = false;
@@ -59,6 +57,7 @@ namespace ActiveStruts.Modules
         private int _strutRealignCounter;
         private int _ticksForDelayedStart;
         private readonly object _freeAttachStrutUpdateLock = new object();
+        private ModuleActiveStrutFreeAttachTarget _freeAttachTarget;
 
         private Part FreeAttachPart
         {
@@ -77,29 +76,26 @@ namespace ActiveStruts.Modules
             }
         }
 
-        public Vector3 FreeAttachPoint
+        public ModuleActiveStrutFreeAttachTarget FreeAttachTarget
         {
-            get
+            get { return this._freeAttachTarget ?? (this._freeAttachTarget = Util.Util.FindFreeAttachTarget(new Guid(this.FreeAttachTargetId))); }
+            set
             {
-                var coords = this.FreeAttachPointString.Split(' ').Select(float.Parse).ToArray();
-                return new Vector3(coords[0], coords[1], coords[2]);
+                this.FreeAttachTargetId = value != null ? value.ID.ToString() : Guid.Empty.ToString();
+                _freeAttachTarget = value;
             }
-            set { this.FreeAttachPointString = string.Format("{0} {1} {2}", value.x, value.y, value.z); }
-        }
-
-        public Vector3 FreeAttachTargetLocalVector
-        {
-            get
-            {
-                var coords = this.FreeAttachTargetLocalVectorString.Split(' ').Select(float.Parse).ToArray();
-                return new Vector3(coords[0], coords[1], coords[2]);
-            }
-            set { this.FreeAttachTargetLocalVectorString = string.Format("{0} {1} {2}", value.x, value.y, value.z); }
         }
 
         public Guid ID
         {
-            get { return new Guid(this.Id); }
+            get
+            {
+                if (this.Id == null || new Guid(this.Id) == Guid.Empty)
+                {
+                    this.Id = Guid.NewGuid().ToString();
+                }
+                return new Guid(this.Id);
+            }
         }
 
         public bool IsConnectionFree
@@ -223,7 +219,7 @@ namespace ActiveStruts.Modules
                 }
                 if (valid)
                 {
-                    this.PlaceFreeAttach(hittedPart, info.point, info.distance);
+                    this.PlaceFreeAttach(hittedPart, info.point);
                 }
             }
             else
@@ -268,6 +264,7 @@ namespace ActiveStruts.Modules
 
         public override void OnStart(StartState state)
         {
+            Debug.Log("[AS] test if OnStart gets ever called");
             if (!this.IsTargetOnly)
             {
                 this.Strut = this.part.FindModelTransform(this.StrutName);
@@ -275,13 +272,9 @@ namespace ActiveStruts.Modules
                 this.DestroyStrut();
             }
             this.Origin = this.part.transform;
-            if (HighLogic.LoadedSceneIsEditor)
-            {
-                _ticksForDelayedStart = 0;
-            }
             this._delayedStartFlag = true;
-            this._ticksForDelayedStart = Config.Instance.StartDelay;
-            this._strutRealignCounter = Config.Instance.StrutRealignInterval;
+            this._ticksForDelayedStart = HighLogic.LoadedSceneIsEditor ? 0 : Config.Instance.StartDelay;
+            this._strutRealignCounter = Config.Instance.StrutRealignInterval*(HighLogic.LoadedSceneIsEditor ? 6 : 0);
         }
 
         public override void OnUpdate()
@@ -359,21 +352,31 @@ namespace ActiveStruts.Modules
             }
         }
 
-        public void PlaceFreeAttach(Part hittedPart, Vector3 hitPosition, float distance)
+        public void PlaceFreeAttach(Part hittedPart, Vector3 hitPosition)
         {
             lock (_freeAttachStrutUpdateLock)
             {
                 ActiveStrutsAddon.Mode = AddonMode.None;
-                this.FreeAttachPoint = hitPosition;
-                this.FreeAttachDistance = distance;
-                this.FreeAttachTargetLocalVector = hitPosition - hittedPart.transform.position;
+                if (!hittedPart.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget))
+                {
+                    hittedPart.AddModule(Config.Instance.ModuleActiveStrutFreeAttachTarget);
+                }
+                var target = hittedPart.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget;
+                if (target != null)
+                {
+                    this.FreeAttachTarget = target;
+                    ActiveStrutsEditorAddon.AddModuleActiveStrutFreeAttachTarget(target);
+                }
                 this.Mode = Mode.Linked;
                 this.IsLinked = true;
                 this.IsFreeAttached = true;
                 this.IsConnectionOrigin = true;
                 this.DestroyJoint();
                 this.DestroyStrut();
-                this.CreateJoint(this.part.rigidbody, hittedPart.rigidbody, LinkType.Weak, (hitPosition + this.Origin.position)/2);
+                if (target != null)
+                {
+                    this.CreateJoint(this.part.rigidbody, target.PartRigidbody, LinkType.Weak, (hitPosition + this.Origin.position)/2);
+                }
                 this.CreateStrut(hitPosition);
                 this.Target = null;
                 this.Targeter = null;
@@ -386,23 +389,24 @@ namespace ActiveStruts.Modules
         {
             if (this.IsFreeAttached)
             {
-                Debug.Log("[AS] saved coords: " + this.FreeAttachPoint);
-                var rayRes = this.CheckFreeAttachPoint();
-                if (!rayRes.HitResult)
+                if (this.FreeAttachTarget != null)
                 {
-                    if (rayRes.TargetPart != null)
+                    Debug.Log("[AS] should reconnect free attach strut");
+                    var check = this.CheckFreeAttachPoint();
+                    var rayRes = Util.Util.PerformRaycast(Origin.position, FreeAttachTarget.PartOrigin.position, Origin.right);
+                    if (rayRes.HitCurrentVessel && rayRes.HittedPart != null && rayRes.DistanceFromOrigin <= Config.Instance.MaxDistance)
                     {
-                        Debug.Log("[AS] hitted part; " + rayRes.TargetPart.transform.position);
+                        Debug.Log("[AS] linking free attach strut now...");
+                        this.PlaceFreeAttach(rayRes.HittedPart, rayRes.Hit.point);
+                        this.UpdateGui();
+                        return;
                     }
-                    this.IsFreeAttached = false;
-                    this.Mode = Mode.Unlinked;
-                    this.IsConnectionOrigin = false;
-                    this.LinkType = LinkType.None;
-                    this.UpdateGui();
-                    return;
                 }
-                Debug.Log("[AS] reconnecting to coords: " + rayRes.TargetPart.transform.position);
-                this.PlaceFreeAttach(rayRes.TargetPart, this.FreeAttachPoint, this.FreeAttachDistance);
+                Debug.Log("[AS] free attach target seems to be null");
+                this.IsFreeAttached = false;
+                this.Mode = Mode.Unlinked;
+                this.IsConnectionOrigin = false;
+                this.LinkType = LinkType.None;
                 this.UpdateGui();
                 return;
             }
@@ -563,8 +567,7 @@ namespace ActiveStruts.Modules
             {
                 this.IsFreeAttached = false;
             }
-            this.FreeAttachDistance = 0f;
-            this.FreeAttachPoint = Vector3.zero;
+            this.FreeAttachTarget = null;
             this.Mode = Mode.Unlinked;
             this.IsLinked = false;
             this.DestroyStrut();
@@ -739,7 +742,7 @@ namespace ActiveStruts.Modules
             {
                 lock (_freeAttachStrutUpdateLock)
                 {
-                    var targetPos = Util.Util.GetNewWorldPosForFreeAttachTarget(this.FreeAttachPart, this.FreeAttachTargetLocalVector);
+                    var targetPos = Util.Util.PerformRaycast(this.Origin.position, this.FreeAttachTarget.PartOrigin.position, this.Origin.right).Hit.point;
                     this.DestroyStrut();
                     this.CreateStrut(targetPos);
                 }

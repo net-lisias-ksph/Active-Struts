@@ -33,11 +33,10 @@ namespace ActiveStruts.Util
 
         public static FreeAttachTargetCheck CheckFreeAttachPoint(this ModuleActiveStrut origin)
         {
-            var raycast = PerformRaycast(origin.Origin.position, origin.FreeAttachPoint, origin.Origin.right);
-            Debug.Log("[AS] checkfreepoint: " + origin.Origin.position + " " + origin.FreeAttachPoint + " " + origin.Origin.right);
+            var raycast = PerformRaycast(origin.Origin.position, origin.FreeAttachTarget.PartOrigin.position, origin.Origin.right);
             if (raycast.HitResult)
             {
-                var distOk = DistanceInToleranceRange(origin.FreeAttachDistance, raycast.DistanceFromOrigin);
+                var distOk = raycast.DistanceFromOrigin <= Config.Instance.MaxDistance;
                 return new FreeAttachTargetCheck
                        {
                            TargetPart = raycast.HittedPart,
@@ -197,6 +196,24 @@ namespace ActiveStruts.Util
                 moduleActiveStrut.UpdateGui();
                 moduleActiveStrut.Targeter = moduleActiveStrut.OldTargeter;
             }
+        }
+
+        public static List<ModuleActiveStrutFreeAttachTarget> GetAllFreeAttachTargets()
+        {
+            if (HighLogic.LoadedSceneIsFlight)
+            {
+                return
+                    FlightGlobals.ActiveVessel.Parts.Where(p => p.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget))
+                                 .Select(p => p.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget)
+                                 .ToList();
+            }
+            return HighLogic.LoadedSceneIsEditor ? ActiveStrutsEditorAddon.GetAllFreeAttachTargets() : new List<ModuleActiveStrutFreeAttachTarget>();
+        }
+
+        public static ModuleActiveStrutFreeAttachTarget FindFreeAttachTarget(Guid guid)
+        {
+            Debug.Log("[AS] freeattachtarget guid: " + guid);
+            return GetAllFreeAttachTargets().Find(m => m.ID == guid);
         }
     }
 }

@@ -55,7 +55,7 @@ namespace ActiveStruts.Addons
             if (module.IsConnectionOrigin && module.Target != null && (HighLogic.LoadedSceneIsEditor || module.Target.part.vessel == data.vessel))
             {
                 module.Target.part.SetHighlightColor(Color.cyan);
-                module.Target.part.SetHighlight(true); 
+                module.Target.part.SetHighlight(true);
                 _targetHighlightedParts.Add(module.Target.part);
             }
             else if (module.Targeter != null && !module.IsConnectionOrigin && (HighLogic.LoadedSceneIsEditor || module.Targeter.part.vessel == data.vessel))
@@ -90,6 +90,18 @@ namespace ActiveStruts.Addons
                 case AddonMode.FreeAttach:
                 {
                     valid = valid && !raycast.HittedPart.Modules.Contains(Config.Instance.ModuleName);
+                    if (valid)
+                    {
+                        var res = Util.Util.PerformRaycast(CurrentTargeter.Origin.position, raycast.HittedPart.transform.position, CurrentTargeter.Origin.right);
+                        valid = res.HitResult && res.HittedPart != null && res.HittedPart == raycast.HittedPart && res.DistanceFromOrigin <= Config.Instance.MaxDistance && res.RayAngle <= Config.Instance.MaxAngle;
+                        raycast.HitResult = res.HitResult;
+                        raycast.HittedPart = res.HittedPart;
+                        raycast.HitCurrentVessel = res.HitCurrentVessel;
+                        raycast.DistanceFromOrigin = res.DistanceFromOrigin;
+                        raycast.RayAngle = res.RayAngle;
+                        raycast.Hit = res.Hit;
+                        raycast.Ray = res.Ray;
+                    }
                 }
                     break;
             }
@@ -264,7 +276,7 @@ namespace ActiveStruts.Addons
                     {
                         if (validPos)
                         {
-                            CurrentTargeter.PlaceFreeAttach(raycast.HittedPart, mp, raycast.DistanceFromOrigin);
+                            CurrentTargeter.PlaceFreeAttach(raycast.HittedPart, raycast.Hit.point);
                             handled = true;
                         }
                     }

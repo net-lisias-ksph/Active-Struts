@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using ActiveStruts.Modules;
 using ActiveStruts.Util;
 using UnityEngine;
@@ -10,10 +11,12 @@ namespace ActiveStruts.Addons
     public class ActiveStrutsEditorAddon : MonoBehaviour
     {
         private static List<ModuleActiveStrut> _modules;
+        private static List<ModuleActiveStrutFreeAttachTarget> _moduleActiveStrutFreeAttachTargets;
 
         public void Awake()
         {
             _modules = new List<ModuleActiveStrut>();
+            _moduleActiveStrutFreeAttachTargets = new List<ModuleActiveStrutFreeAttachTarget>();
         }
 
         public static List<ModuleActiveStrut> GetAllActiveStruts()
@@ -31,21 +34,44 @@ namespace ActiveStruts.Addons
         private void ProcessPartAttach(GameEvents.HostTargetAction<Part, Part> data)
         {
             var attachedPart = data.host;
-            if (!attachedPart.Modules.Contains(Config.Instance.ModuleName))
+            if (attachedPart.Modules.Contains(Config.Instance.ModuleName))
             {
-                return;
+                var module = attachedPart.Modules[Config.Instance.ModuleName] as ModuleActiveStrut;
+                _modules.Add(module);
+                ResetActiveStrutToDefault(module);
             }
-            var module = attachedPart.Modules[Config.Instance.ModuleName] as ModuleActiveStrut;
-            _modules.Add(module);
-            ResetActiveStrutToDefault(module);
+            if (attachedPart.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget))
+            {
+                var module = attachedPart.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget;
+                AddModuleActiveStrutFreeAttachTarget(module);
+                ResetFreeAttachTargetToDefault(module);
+            }
         }
 
+        private static void ResetFreeAttachTargetToDefault(ModuleActiveStrutFreeAttachTarget module)
+        {
+            module.ID = Guid.NewGuid();
+        }
+
+        public static void AddModuleActiveStrutFreeAttachTarget(ModuleActiveStrutFreeAttachTarget module)
+        {
+            if (_moduleActiveStrutFreeAttachTargets.All(m => m.ID != module.ID))
+            {
+                _moduleActiveStrutFreeAttachTargets.Add(module);
+            }
+        }
+
+        //must not be static
         private void ProcessPartRemove(GameEvents.HostTargetAction<Part, Part> data)
         {
             var removedPart = data.target;
             if (removedPart.Modules.Contains(Config.Instance.ModuleName))
             {
                 _modules.Remove(removedPart.Modules[Config.Instance.ModuleName] as ModuleActiveStrut);
+            }
+            if (removedPart.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget))
+            {
+                _moduleActiveStrutFreeAttachTargets.Remove(removedPart.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget);
             }
         }
 
@@ -60,11 +86,9 @@ namespace ActiveStruts.Addons
             moduleToReset.Id = Guid.NewGuid().ToString();
             moduleToReset.LinkType = LinkType.None;
             moduleToReset.OldTargeter = null;
-            moduleToReset.FreeAttachDistance = 0f;
+            moduleToReset.FreeAttachTarget = null;
             moduleToReset.IsFreeAttached = false;
             moduleToReset.IsLinked = false;
-            moduleToReset.FreeAttachPoint = Vector3.zero;
-            moduleToReset.FreeAttachTargetLocalVector = Vector3.zero;
         }
 
         public void Start()
@@ -79,6 +103,11 @@ namespace ActiveStruts.Addons
             {
                 moduleActiveStrut.OnUpdate();
             }
+        }
+
+        public static List<ModuleActiveStrutFreeAttachTarget> GetAllFreeAttachTargets()
+        {
+            return _moduleActiveStrutFreeAttachTargets;
         }
     }
 }

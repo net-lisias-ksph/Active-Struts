@@ -49,6 +49,7 @@
   <ItemGroup>
     <Compile Include="Addons\ActiveStrutsAddon.cs" />
     <Compile Include="Addons\ActiveStrutsEditorAddon.cs" />
+    <Compile Include="Modules\ModuleActiveStrutFreeAttachTarget.cs" />
     <Compile Include="Util\Config.cs" />
     <Compile Include="Util\LinkType.cs" />
     <Compile Include="Util\Mode.cs" />
