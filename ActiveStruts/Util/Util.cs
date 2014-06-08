@@ -198,10 +198,5 @@ namespace ActiveStruts.Util
                 moduleActiveStrut.Targeter = moduleActiveStrut.OldTargeter;
             }
         }
-
-        //public static string ToDebugString(this Vector3 vector)
-        //{
-        //    return string.Format("[x:{0}, y:{1}, z:{2}]", vector.x, vector.y, vector.z);
-        //}
     }
 }

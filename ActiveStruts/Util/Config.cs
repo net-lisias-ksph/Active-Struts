@@ -101,6 +101,14 @@ namespace ActiveStruts.Util
         // ReSharper disable once InconsistentNaming
         private const string _editorInputLockId = "[AS] temp editor lock";
 
+        // ReSharper disable once InconsistentNaming
+        private const string _invisibleCubeName = "AS_IC_1";
+
+        public string InvisibleCubeName
+        {
+            get { return _invisibleCubeName; }
+        }
+
         public string EditorInputLockId
         {
             get { return _editorInputLockId; }

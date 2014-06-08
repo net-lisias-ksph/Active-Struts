@@ -149,7 +149,7 @@ namespace ActiveStruts.Modules
             this.UpdateGui();
         }
 
-        public void CreateJoint(Rigidbody originBody, Rigidbody targetBody, LinkType type)
+        public void CreateJoint(Rigidbody originBody, Rigidbody targetBody, LinkType type, Vector3 anchorPosition)
         {
             this._joint = originBody.gameObject.AddComponent<ConfigurableJoint>();
             this._joint.connectedBody = targetBody;
@@ -162,7 +162,7 @@ namespace ActiveStruts.Modules
             this._joint.angularZMotion = ConfigurableJointMotion.Locked;
             this._joint.projectionAngle = 0f;
             this._joint.projectionDistance = 0f;
-            this._joint.anchor = this._joint.rigidbody.transform.InverseTransformPoint(this._joint.connectedBody.transform.position);
+            this._joint.anchor = anchorPosition;
             this.LinkType = type;
             if (!this.IsFreeAttached)
             {
@@ -373,7 +373,7 @@ namespace ActiveStruts.Modules
                 this.IsConnectionOrigin = true;
                 this.DestroyJoint();
                 this.DestroyStrut();
-                this.CreateJoint(this.part.rigidbody, hittedPart.rigidbody, LinkType.Weak);
+                this.CreateJoint(this.part.rigidbody, hittedPart.rigidbody, LinkType.Weak, (hitPosition + this.Origin.position)/2);
                 this.CreateStrut(hitPosition);
                 this.Target = null;
                 this.Targeter = null;
@@ -418,7 +418,7 @@ namespace ActiveStruts.Modules
                     {
                         this.CreateStrut(this.Target.Origin.position);
                     }
-                    this.CreateJoint(this.part.rigidbody, this.Target.part.rigidbody, this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal);
+                    this.CreateJoint(this.part.rigidbody, this.Target.part.rigidbody, this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal, this.Target.transform.position);
                     this.Mode = Mode.Linked;
                     this.IsLinked = true;
                 }
@@ -455,7 +455,7 @@ namespace ActiveStruts.Modules
             this.Target = target;
             this.Mode = Mode.Linked;
             this.IsLinked = true;
-            this.CreateJoint(this.part.rigidbody, target.part.rigidbody, target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal);
+            this.CreateJoint(this.part.rigidbody, target.part.rigidbody, target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal, this.Target.transform.position);
             this.CreateStrut(target.Origin.position, target.IsTargetOnly ? 1 : 0.5f);
             this.IsConnectionOrigin = true;
             Util.Util.ResetAllFromTargeting();
