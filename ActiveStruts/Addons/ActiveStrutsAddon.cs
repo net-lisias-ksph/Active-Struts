@@ -6,17 +6,17 @@ using UnityEngine;
 
 namespace ActiveStruts.Addons
 {
-    [KSPAddon(KSPAddon.Startup.Flight, false)]
+    [KSPAddon(KSPAddon.Startup.EveryScene, false)]
     public class ActiveStrutsAddon : MonoBehaviour
     {
+        private const int TargetHighlightRemoveInterval = 120;
         private static GameObject _connector;
         private bool _resetAllHighlighting;
+        private int _targetHighlightRemoveCounter;
+        private List<Part> _targetHighlightedParts;
         public static ModuleActiveStrut CurrentTargeter { get; set; }
         public static AddonMode Mode { get; set; }
         public static Vector3 Origin { get; set; }
-        private int _targetHighlightRemoveCounter;
-        private List<Part> _targetHighlightedParts;
-        private const int TargetHighlightRemoveInterval = 120;
 
         //must not be static
         private void ActionMenuClosed(Part data)
@@ -30,11 +30,11 @@ namespace ActiveStruts.Addons
             {
                 return;
             }
-            if (module.IsConnectionOrigin && module.Target != null && module.Target.part.vessel == data.vessel)
+            if (module.IsConnectionOrigin && module.Target != null && (HighLogic.LoadedSceneIsEditor || module.Target.part.vessel == data.vessel))
             {
                 module.Target.part.SetHighlightDefault();
             }
-            else if (!module.IsConnectionOrigin && module.Targeter != null && module.Targeter.vessel == data.vessel)
+            else if (module.Target != null && (!module.IsConnectionOrigin && module.Targeter != null && (HighLogic.LoadedSceneIsEditor || module.Target.part.vessel == data.vessel)))
             {
                 module.Targeter.part.SetHighlightDefault();
             }
@@ -52,12 +52,12 @@ namespace ActiveStruts.Addons
             {
                 return;
             }
-            if (module.IsConnectionOrigin && module.Target != null && module.Target.part.vessel == data.vessel)
+            if (module.IsConnectionOrigin && module.Target != null && (HighLogic.LoadedSceneIsEditor || module.Target.part.vessel == data.vessel))
             {
                 module.Target.part.SetHighlightColor(Color.cyan);
                 module.Target.part.SetHighlight(true);
             }
-            else if (!module.IsConnectionOrigin && module.Targeter != null && module.Targeter.vessel == data.vessel)
+            else if (module.Targeter != null && !module.IsConnectionOrigin && (HighLogic.LoadedSceneIsEditor || module.Targeter.part.vessel == data.vessel))
             {
                 if (module.IsTargetOnly)
                 {
@@ -108,42 +108,49 @@ namespace ActiveStruts.Addons
 
         public void Start()
         {
-            _targetHighlightRemoveCounter = TargetHighlightRemoveInterval;
-            _targetHighlightedParts = new List<Part>();
+            if (!(HighLogic.LoadedSceneIsEditor || HighLogic.LoadedSceneIsFlight))
+            {
+                return;
+            }
+            this._targetHighlightRemoveCounter = TargetHighlightRemoveInterval;
+            this._targetHighlightedParts = new List<Part>();
             GameEvents.onPartActionUICreate.Add(this.ActionMenuCreated);
             GameEvents.onPartActionUIDismiss.Add(this.ActionMenuClosed);
             _connector = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             _connector.name = "ASConn";
             DestroyImmediate(_connector.collider);
-            _connector.transform.localScale = new Vector3( Config.ConnectorDimension, Config.ConnectorDimension,  Config.ConnectorDimension);
+            _connector.transform.localScale = new Vector3(Config.ConnectorDimension, Config.ConnectorDimension, Config.ConnectorDimension);
             var mr = _connector.GetComponent<MeshRenderer>();
             mr.name = "ASConn";
             mr.material = new Material(Shader.Find("Transparent/Diffuse")) {color = Util.Util.MakeColorTransparent(Color.green)};
             _connector.SetActive(false);
-            Debug.Log("connector created");
         }
 
         public void Update()
         {
-            if (_targetHighlightRemoveCounter > 0)
+            if (!(HighLogic.LoadedSceneIsEditor || HighLogic.LoadedSceneIsFlight))
             {
-                _targetHighlightRemoveCounter--;
+                return;
+            }
+            if (this._targetHighlightRemoveCounter > 0)
+            {
+                this._targetHighlightRemoveCounter--;
             }
             else
             {
-                _targetHighlightRemoveCounter = TargetHighlightRemoveInterval;
+                this._targetHighlightRemoveCounter = TargetHighlightRemoveInterval;
                 foreach (var targetHighlightedPart in this._targetHighlightedParts.Where(targetHighlightedPart => targetHighlightedPart != null))
                 {
                     targetHighlightedPart.SetHighlightDefault();
                 }
-                _targetHighlightedParts.Clear();
+                this._targetHighlightedParts.Clear();
             }
-            if (!HighLogic.LoadedSceneIsFlight || Mode == AddonMode.None || CurrentTargeter == null)
+            if (Mode == AddonMode.None || CurrentTargeter == null)
             {
                 if (this._resetAllHighlighting)
                 {
                     this._resetAllHighlighting = false;
-                    foreach (var moduleActiveStrut in FlightGlobals.ActiveVessel.GetAllActiveStruts())
+                    foreach (var moduleActiveStrut in Util.Util.GetAllActiveStruts())
                     {
                         moduleActiveStrut.part.SetHighlightDefault();
                     }
@@ -161,31 +168,29 @@ namespace ActiveStruts.Addons
             var raycast = Util.Util.PerformRaycast(CurrentTargeter.Origin.position, mp, CurrentTargeter.Origin.right);
             if (!raycast.HitResult || !raycast.HitCurrentVessel)
             {
+                var handled = false;
                 if (Mode == AddonMode.Link && Input.GetKeyDown(KeyCode.Mouse0))
                 {
                     CurrentTargeter.AbortLink();
                     CurrentTargeter.UpdateGui();
+                    handled = true;
                 }
                 if (Mode == AddonMode.FreeAttach && Input.GetKeyDown(KeyCode.X))
                 {
                     Mode = AddonMode.None;
                     CurrentTargeter.UpdateGui();
+                    handled = true;
                 }
                 _connector.SetActive(false);
+                if (HighLogic.LoadedSceneIsEditor && handled)
+                {
+                    Input.ResetInputAxes();
+                    InputLockManager.RemoveControlLock(Config.EditorInputLockId);
+                }
                 return;
             }
             var validPos = _determineColor(mp, raycast);
             _processUserInput(mp, raycast, validPos);
-        }
-
-        private static void _highlightCurrentTargets()
-        {
-            var targets = FlightGlobals.ActiveVessel.GetAllActiveStruts().Where(m => m.Mode == Util.Mode.Target).Select(m => m.part).ToList();
-            foreach (var part in targets)
-            {
-                part.SetHighlightColor(Color.green);
-                part.SetHighlight(true);
-            }
         }
 
         private static bool _checkForModule(Part part)
@@ -201,6 +206,16 @@ namespace ActiveStruts.Addons
             return validPosition;
         }
 
+        private static void _highlightCurrentTargets()
+        {
+            var targets = Util.Util.GetAllActiveStruts().Where(m => m.Mode == Util.Mode.Target).Select(m => m.part).ToList();
+            foreach (var part in targets)
+            {
+                part.SetHighlightColor(Color.green);
+                part.SetHighlight(true);
+            }
+        }
+
         private static void _pointToMousePosition(Vector3 mp)
         {
             _connector.SetActive(true);
@@ -213,11 +228,11 @@ namespace ActiveStruts.Addons
             trans.Rotate(new Vector3(0, 0, 1), 90f);
             trans.Rotate(new Vector3(1, 0, 0), 90f);
             trans.Translate(new Vector3(0f, dist, 0f));
-            Debug.Log("connector transformed");
         }
 
         private static void _processUserInput(Vector3 mp, RaycastResult raycast, bool validPos)
         {
+            var handled = false;
             switch (Mode)
             {
                 case AddonMode.Link:
@@ -230,12 +245,14 @@ namespace ActiveStruts.Addons
                             if (moduleActiveStrut != null)
                             {
                                 moduleActiveStrut.SetAsTarget();
+                                handled = true;
                             }
                         }
                     }
                     else if (Input.GetKeyDown(KeyCode.X))
                     {
                         CurrentTargeter.AbortLink();
+                        handled = true;
                     }
                 }
                     break;
@@ -246,14 +263,21 @@ namespace ActiveStruts.Addons
                         if (validPos)
                         {
                             CurrentTargeter.PlaceFreeAttach(raycast.HittedPart, mp, raycast.DistanceFromOrigin);
+                            handled = true;
                         }
                     }
                     else if (Input.GetKeyDown(KeyCode.X))
                     {
                         Mode = AddonMode.None;
+                        handled = true;
                     }
                 }
                     break;
+            }
+            if (HighLogic.LoadedSceneIsEditor && handled)
+            {
+                Input.ResetInputAxes();
+                InputLockManager.RemoveControlLock(Config.EditorInputLockId);
             }
         }
     }

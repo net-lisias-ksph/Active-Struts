@@ -28,7 +28,7 @@ namespace ActiveStruts.Util
     {
         public static bool AnyTargetersConnected(this ModuleActiveStrut target)
         {
-            return FlightGlobals.ActiveVessel.GetAllActiveStruts().Any(m => !m.IsTargetOnly && m.Mode == Mode.Linked && m.Target != null && m.Target == target);
+            return GetAllActiveStruts().Any(m => !m.IsTargetOnly && m.Mode == Mode.Linked && m.Target != null && m.Target == target);
         }
 
         public static FreeAttachTargetCheck CheckFreeAttachPoint(this ModuleActiveStrut origin)
@@ -56,14 +56,18 @@ namespace ActiveStruts.Util
                    currentDistance <= Config.MaxDistance;
         }
 
-        public static List<ModuleActiveStrut> GetAllActiveStruts(this Vessel vessel)
+        public static List<ModuleActiveStrut> GetAllActiveStruts()
         {
-            return vessel.Parts.Where(p => p.Modules.Contains(Config.ModuleName)).Select(p => p.Modules[Config.ModuleName] as ModuleActiveStrut).ToList();
+            if (HighLogic.LoadedSceneIsFlight)
+            {
+                return FlightGlobals.ActiveVessel.Parts.Where(p => p.Modules.Contains(Config.ModuleName)).Select(p => p.Modules[Config.ModuleName] as ModuleActiveStrut).ToList();
+            }
+            return HighLogic.LoadedSceneIsEditor ? ActiveStrutsEditorAddon.GetAllActiveStruts() : new List<ModuleActiveStrut>();
         }
 
         public static List<ModuleActiveStrut> GetAllPossibleTargets(this ModuleActiveStrut origin)
         {
-            return origin.part.vessel.GetAllActiveStruts().Where(m => m.ID != origin.ID && origin.IsPossibleTarget(m)).Select(m => m).ToList();
+            return GetAllActiveStruts().Where(m => m.ID != origin.ID && origin.IsPossibleTarget(m)).Select(m => m).ToList();
         }
 
         public static float GetJointStrength(this LinkType type)
@@ -99,6 +103,10 @@ namespace ActiveStruts.Util
 
         public static Vector3 GetNewWorldPosForFreeAttachTarget(Part freeAttachPart, Vector3 freeAttachTargetLocalVector)
         {
+            if (freeAttachPart == null)
+            {
+                return Vector3.zero;
+            }
             var newPoint = freeAttachPart.transform.position + freeAttachTargetLocalVector;
             return newPoint;
         }
@@ -113,9 +121,9 @@ namespace ActiveStruts.Util
             return ret;
         }
 
-        public static ModuleActiveStrut GetStrutById(this Vessel vessel, Guid id)
+        public static ModuleActiveStrut GetStrutById(Guid id)
         {
-            return vessel.GetAllActiveStruts().Find(m => m.ID == id);
+            return GetAllActiveStruts().Find(m => m.ID == id);
         }
 
         public static bool IsPossibleFreeAttachTarget(this ModuleActiveStrut origin, Vector3 mousePosition)
@@ -137,8 +145,7 @@ namespace ActiveStruts.Util
         public static Color MakeColorTransparent(Color color)
         {
             var rgba = GetRgbaFromColor(color);
-            Debug.Log("[AS] color transp: " + Config.ColorTransparency);
-            return new Color(rgba[0], rgba[1], rgba[2], Config.ColorTransparency);           
+            return new Color(rgba[0], rgba[1], rgba[2], Config.ColorTransparency);
         }
 
         public static Part PartFromHit(this RaycastHit hit)
@@ -176,13 +183,13 @@ namespace ActiveStruts.Util
                        HitResult = hit,
                        Ray = ray,
                        RayAngle = angle,
-                       HitCurrentVessel = hittedPart != null && hittedPart.vessel == FlightGlobals.ActiveVessel
+                       HitCurrentVessel = hittedPart != null && (HighLogic.LoadedSceneIsEditor || hittedPart.vessel == FlightGlobals.ActiveVessel)
                    };
         }
 
         public static void ResetAllFromTargeting()
         {
-            foreach (var moduleActiveStrut in FlightGlobals.ActiveVessel.GetAllActiveStruts().Where(m => m.Mode == Mode.Target))
+            foreach (var moduleActiveStrut in GetAllActiveStruts().Where(m => m.Mode == Mode.Target))
             {
                 moduleActiveStrut.Mode = Mode.Unlinked;
                 moduleActiveStrut.part.SetHighlightDefault();

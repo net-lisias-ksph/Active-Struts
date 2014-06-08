@@ -1,7 +1,4 @@
-﻿using ActiveStruts.Util;
-using UnityEngine;
-
-namespace ActiveStruts.Addons
+﻿namespace ActiveStruts.Addons
 {
     //[KSPAddon(KSPAddon.Startup.EveryScene, true)]
     //public class ASConfigAddon : MonoBehaviour

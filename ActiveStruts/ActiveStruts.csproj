@@ -48,6 +48,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Addons\ActiveStrutsAddon.cs" />
+    <Compile Include="Addons\ActiveStrutsEditorAddon.cs" />
     <Compile Include="Addons\ASConfigAddon.cs" />
     <Compile Include="Util\Config.cs" />
     <Compile Include="Util\LinkType.cs" />

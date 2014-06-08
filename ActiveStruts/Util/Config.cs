@@ -1,6 +1,4 @@
-﻿using KSP.IO;
-
-namespace ActiveStruts.Util
+﻿namespace ActiveStruts.Util
 {
     public class Config
     {
@@ -18,6 +16,7 @@ namespace ActiveStruts.Util
         public static int StartDelay = 60;
         public static int StrutRealignInterval = 5;
         public static float WeakJointStrength = 10;
+        public static string EditorInputLockId = "[AS] temp editor lock";
 
         //public void Load()
         //{
