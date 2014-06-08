@@ -160,6 +160,8 @@ namespace ActiveStruts.Modules
             this._joint.angularXMotion = ConfigurableJointMotion.Locked;
             this._joint.angularYMotion = ConfigurableJointMotion.Locked;
             this._joint.angularZMotion = ConfigurableJointMotion.Locked;
+            this._joint.projectionAngle = 0f;
+            this._joint.projectionDistance = 0f;
             this._joint.anchor = this._joint.rigidbody.transform.InverseTransformPoint(this._joint.connectedBody.transform.position);
             this.LinkType = type;
             if (!this.IsFreeAttached)

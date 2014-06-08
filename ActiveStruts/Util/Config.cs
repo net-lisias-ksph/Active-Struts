@@ -112,9 +112,9 @@ namespace ActiveStruts.Util
                                                                            {
                                                                                {"MaxDistance", new SettingsEntry(15)},
                                                                                {"MaxAngle", new SettingsEntry(95)},
-                                                                               {"WeakJointStrength", new SettingsEntry(10)},
-                                                                               {"NormalJointStrength", new SettingsEntry(100)},
-                                                                               {"MaximalJointStrength", new SettingsEntry(1000)},
+                                                                               {"WeakJointStrength", new SettingsEntry(50)},
+                                                                               {"NormalJointStrength", new SettingsEntry(500)},
+                                                                               {"MaximalJointStrength", new SettingsEntry(2000)},
                                                                                {"ConnectorDimension", new SettingsEntry(0.5f)},
                                                                                {"ColorTransparency", new SettingsEntry(0.5f)},
                                                                                {"FreeAttachDistanceTolerance", new SettingsEntry(0.1f)},

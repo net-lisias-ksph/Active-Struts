@@ -9,7 +9,7 @@ namespace ActiveStruts.Addons
     [KSPAddon(KSPAddon.Startup.EveryScene, false)]
     public class ActiveStrutsAddon : MonoBehaviour
     {
-        private const int TargetHighlightRemoveInterval = 120;
+        private const int TargetHighlightRemoveInterval = 180;
         private static GameObject _connector;
         private bool _resetAllHighlighting;
         private int _targetHighlightRemoveCounter;
@@ -55,7 +55,8 @@ namespace ActiveStruts.Addons
             if (module.IsConnectionOrigin && module.Target != null && (HighLogic.LoadedSceneIsEditor || module.Target.part.vessel == data.vessel))
             {
                 module.Target.part.SetHighlightColor(Color.cyan);
-                module.Target.part.SetHighlight(true);
+                module.Target.part.SetHighlight(true); 
+                _targetHighlightedParts.Add(module.Target.part);
             }
             else if (module.Targeter != null && !module.IsConnectionOrigin && (HighLogic.LoadedSceneIsEditor || module.Targeter.part.vessel == data.vessel))
             {
@@ -65,6 +66,7 @@ namespace ActiveStruts.Addons
                 }
                 module.Targeter.part.SetHighlightColor(Color.cyan);
                 module.Targeter.part.SetHighlight(true);
+                _targetHighlightedParts.Add(module.Targeter.part);
             }
         }
 
