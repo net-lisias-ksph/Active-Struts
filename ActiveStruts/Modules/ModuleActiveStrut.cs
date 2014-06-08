@@ -53,9 +53,10 @@ namespace ActiveStruts.Modules
         private ConfigurableJoint _joint;
         private LinkType _linkType;
         private Mode _mode = Mode.Undefined;
-
         private int _strutRealignCounter;
         private int _ticksForDelayedStart;
+        private bool _jointBroken = false;
+        private float _jointBrokeForce = 0;
 
         private Part FreeAttachPart
         {
@@ -72,6 +73,12 @@ namespace ActiveStruts.Modules
                 }
                 return this._freeAttachPart;
             }
+        }
+
+        public void OnJointBreak(float breakForce)
+        {
+            this._jointBroken = true;
+            this._jointBrokeForce = breakForce;
         }
 
         public Vector3 FreeAttachPoint
@@ -157,6 +164,7 @@ namespace ActiveStruts.Modules
             this._joint.angularXMotion = ConfigurableJointMotion.Locked;
             this._joint.angularYMotion = ConfigurableJointMotion.Locked;
             this._joint.angularZMotion = ConfigurableJointMotion.Locked;
+            _joint.anchor = _joint.rigidbody.transform.InverseTransformPoint(_joint.connectedBody.transform.position);
             this.LinkType = type;
             if (!this.IsFreeAttached)
             {
@@ -170,17 +178,16 @@ namespace ActiveStruts.Modules
             strut.LookAt(target);
             strut.localScale = new Vector3(1, 1, 1);
             var distance = -1*Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(target))*distancePercent;
-            Debug.Log("[AS] original strut distance: " + distance);
             if (this.IsFreeAttached)
             {
-                distance -= (float) ASConfigAddon.Config.FreeAttachStrutExtension;
+                distance -= Config.FreeAttachStrutExtension;
             }
             this.Strut.localScale = new Vector3(1, 1, distance);
         }
 
         public void DestroyJoint()
         {
-            Destroy(this._joint);
+            DestroyImmediate(this._joint);
             this._joint = null;
             this.LinkType = LinkType.None;
         }
@@ -193,7 +200,7 @@ namespace ActiveStruts.Modules
         [KSPEvent(name = "FreeAttach", active = false, guiName = "FreeAttach Link", guiActiveUnfocused = true, unfocusedRange = 50)]
         public void FreeAttach()
         {
-            OSD.Info(ASConfigAddon.Config.FreeAttachHelpText);
+            OSD.Info(Config.FreeAttachHelpText);
             ActiveStrutsAddon.CurrentTargeter = this;
             ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
         }
@@ -209,7 +216,7 @@ namespace ActiveStruts.Modules
             }
             ActiveStrutsAddon.Mode = AddonMode.Link;
             ActiveStrutsAddon.CurrentTargeter = this;
-            OSD.Info(ASConfigAddon.Config.LinkHelpText, 5);
+            OSD.Info(Config.LinkHelpText, 5);
             this.UpdateGui();
         }
 
@@ -218,6 +225,7 @@ namespace ActiveStruts.Modules
             if (!this.IsTargetOnly)
             {
                 this.Strut = this.part.FindModelTransform(this.StrutName);
+                DestroyImmediate(this.Strut.collider);
                 this.DestroyStrut();
             }
             this.Origin = this.part.transform;
@@ -227,8 +235,8 @@ namespace ActiveStruts.Modules
                 return;
             }
             this._delayedStartFlag = true;
-            this._ticksForDelayedStart = ASConfigAddon.Config.StartDelay;
-            this._strutRealignCounter = ASConfigAddon.Config.StrutRealignInterval;
+            this._ticksForDelayedStart = Config.StartDelay;
+            this._strutRealignCounter = Config.StrutRealignInterval;
         }
 
         public override void OnUpdate()
@@ -236,6 +244,15 @@ namespace ActiveStruts.Modules
             if (this._delayedStartFlag)
             {
                 this._delayedStart();
+                return;
+            }
+            if (this._jointBroken)
+            {
+                this._jointBroken = false;
+                var strength = this.LinkType.GetJointStrength();
+                var diff = _jointBrokeForce - strength;
+                this.Unlink();
+                OSD.Warn("Joint broken! Applied force was " + _jointBrokeForce.ToString("R") + " while the joint could only take " + strength.ToString("R") + " (difference: " + diff.ToString("R") + ")", 5);
                 return;
             }
             if (this.IsLinked)
@@ -246,7 +263,7 @@ namespace ActiveStruts.Modules
                 }
                 else
                 {
-                    this._strutRealignCounter = ASConfigAddon.Config.StrutRealignInterval;
+                    this._strutRealignCounter = Config.StrutRealignInterval;
                     this._realignStrut();
                 }
             }
@@ -299,20 +316,20 @@ namespace ActiveStruts.Modules
 
         public void PlaceFreeAttach(Part hittedPart, Vector3 hitPosition, float distance)
         {
+            this.FreeAttachPoint = hitPosition;
+            this.FreeAttachDistance = distance;
+            this.FreeAttachTargetLocalVector = hitPosition - hittedPart.transform.position;
             this.Mode = Mode.Linked;
             this.IsLinked = true;
             this.IsFreeAttached = true;
             this.IsConnectionOrigin = true;
             this.CreateJoint(this.part.rigidbody, hittedPart.rigidbody, LinkType.Weak);
             this.CreateStrut(hitPosition);
-            this.FreeAttachPoint = hitPosition;
-            this.FreeAttachDistance = distance;
             this.Target = null;
             this.Targeter = null;
             ActiveStrutsAddon.Mode = AddonMode.None;
             OSD.Success("FreeAttach Link established!");
             this.UpdateGui();
-            this.FreeAttachTargetLocalVector = hitPosition - hittedPart.transform.position;
         }
 
         private void Reconnect()
@@ -391,8 +408,6 @@ namespace ActiveStruts.Modules
             this.OldTargeter = this.Targeter;
             this.Targeter = targeter;
             this.Mode = Mode.Target;
-            this.part.SetHighlightColor(Color.green);
-            this.part.SetHighlight(true);
         }
 
         [KSPEvent(name = "ToggleLink", active = false, guiName = "Toggle Link", guiActiveUnfocused = true, unfocusedRange = 50)]
@@ -416,12 +431,26 @@ namespace ActiveStruts.Modules
             {
                 if (this.Target != null)
                 {
-                    this.Target.Targeter = this;
-                    this.Target.SetAsTarget();
+                    if (this.IsPossibleTarget(this.Target))
+                    {
+                        this.Target.Targeter = this;
+                        this.Target.SetAsTarget();
+                    }
+                    else
+                    {
+                        OSD.Warn("Can't relink at the moment, target may be obstructed.");
+                    }
                 }
                 else if (this.Targeter != null)
                 {
-                    this.SetAsTarget();
+                    if (this.Targeter.IsPossibleTarget(this))
+                    {
+                        this.SetAsTarget();
+                    }
+                    else
+                    {
+                        OSD.Warn("Can't relink at the moment, targeter may be obstructed.");
+                    }
                 }
             }
             this.UpdateGui();
@@ -469,9 +498,16 @@ namespace ActiveStruts.Modules
                 this.UpdateGui();
                 return;
             }
+            if (this.IsFreeAttached)
+            {
+                this.IsFreeAttached = false;
+            }
+            this.FreeAttachDistance = 0f;
+            this.FreeAttachPoint = Vector3.zero;
             this.Mode = Mode.Unlinked;
             this.IsLinked = false;
             this.DestroyStrut();
+            this.DestroyJoint();
             this.LinkType = LinkType.None;
             this.UpdateGui();
         }
@@ -487,15 +523,16 @@ namespace ActiveStruts.Modules
                     this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = false;
                     if (!this.IsTargetOnly)
                     {
-                        this.Events["Unlink"].active = this.Events["Unlink"].guiActive = true;
                         this.Events["AbortLink"].active = this.Events["AbortLink"].guiActive = false;
                         if (this.IsFreeAttached)
                         {
                             this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
+                            this.Events["Unlink"].active = this.Events["Unlink"].guiActive = true;
                         }
                         else
                         {
                             this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
+                            this.Events["Unlink"].active = this.Events["Unlink"].guiActive = false;
                         }
                     }
                     else

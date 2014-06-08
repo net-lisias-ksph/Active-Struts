@@ -52,13 +52,13 @@ namespace ActiveStruts.Util
 
         public static bool DistanceInToleranceRange(float savedDistance, float currentDistance)
         {
-            return currentDistance >= savedDistance - ASConfigAddon.Config.FreeAttachDistanceTolerance && currentDistance <= savedDistance + ASConfigAddon.Config.FreeAttachDistanceTolerance &&
-                   currentDistance <= ASConfigAddon.Config.MaxDistance;
+            return currentDistance >= savedDistance - Config.FreeAttachDistanceTolerance && currentDistance <= savedDistance + Config.FreeAttachDistanceTolerance &&
+                   currentDistance <= Config.MaxDistance;
         }
 
         public static List<ModuleActiveStrut> GetAllActiveStruts(this Vessel vessel)
         {
-            return vessel.Parts.Where(p => p.Modules.Contains(ASConfigAddon.Config.ModuleName)).Select(p => p.Modules[ASConfigAddon.Config.ModuleName] as ModuleActiveStrut).ToList();
+            return vessel.Parts.Where(p => p.Modules.Contains(Config.ModuleName)).Select(p => p.Modules[Config.ModuleName] as ModuleActiveStrut).ToList();
         }
 
         public static List<ModuleActiveStrut> GetAllPossibleTargets(this ModuleActiveStrut origin)
@@ -76,15 +76,15 @@ namespace ActiveStruts.Util
                 }
                 case LinkType.Normal:
                 {
-                    return ASConfigAddon.Config.NormalJointStrength;
+                    return Config.NormalJointStrength;
                 }
                 case LinkType.Maximal:
                 {
-                    return ASConfigAddon.Config.MaximalJointStrength;
+                    return Config.MaximalJointStrength;
                 }
                 case LinkType.Weak:
                 {
-                    return ASConfigAddon.Config.WeakJointStrength;
+                    return Config.WeakJointStrength;
                 }
             }
             return 0;
@@ -94,7 +94,7 @@ namespace ActiveStruts.Util
         {
             var ray = HighLogic.LoadedSceneIsFlight ? FlightCamera.fetch.mainCamera.ScreenPointToRay(Input.mousePosition) : Camera.main.ScreenPointToRay(Input.mousePosition);
             RaycastHit hit;
-            return Physics.Raycast(ray, out hit, ASConfigAddon.Config.MaxDistance) ? hit.point : Vector3.zero;
+            return Physics.Raycast(ray, out hit, Config.MaxDistance) ? hit.point : Vector3.zero;
         }
 
         public static Vector3 GetNewWorldPosForFreeAttachTarget(Part freeAttachPart, Vector3 freeAttachTargetLocalVector)
@@ -121,7 +121,7 @@ namespace ActiveStruts.Util
         public static bool IsPossibleFreeAttachTarget(this ModuleActiveStrut origin, Vector3 mousePosition)
         {
             var raycast = PerformRaycast(origin.Origin.position, mousePosition, origin.Origin.right);
-            return raycast.HitResult && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= ASConfigAddon.Config.MaxDistance && raycast.RayAngle <= ASConfigAddon.Config.MaxAngle;
+            return raycast.HitResult && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= Config.MaxDistance && raycast.RayAngle <= Config.MaxAngle;
         }
 
         public static bool IsPossibleTarget(this ModuleActiveStrut origin, ModuleActiveStrut possibleTarget)
@@ -131,13 +131,14 @@ namespace ActiveStruts.Util
                 return false;
             }
             var raycast = PerformRaycast(origin.Origin.position, possibleTarget.Origin.position, origin.Origin.right);
-            return raycast.HitResult && raycast.HittedPart == possibleTarget.part && raycast.DistanceFromOrigin <= ASConfigAddon.Config.MaxDistance && raycast.RayAngle <= ASConfigAddon.Config.MaxAngle && raycast.HitCurrentVessel;
+            return raycast.HitResult && raycast.HittedPart == possibleTarget.part && raycast.DistanceFromOrigin <= Config.MaxDistance && raycast.RayAngle <= Config.MaxAngle && raycast.HitCurrentVessel;
         }
 
         public static Color MakeColorTransparent(Color color)
         {
             var rgba = GetRgbaFromColor(color);
-            return new Color(rgba[0], rgba[1], rgba[2], (float) ASConfigAddon.Config.ColorTransparency);
+            Debug.Log("[AS] color transp: " + Config.ColorTransparency);
+            return new Color(rgba[0], rgba[1], rgba[2], Config.ColorTransparency);           
         }
 
         public static Part PartFromHit(this RaycastHit hit)
@@ -164,7 +165,7 @@ namespace ActiveStruts.Util
             RaycastHit info;
             var dir = (target - origin).normalized;
             var ray = new Ray(origin, dir);
-            var hit = Physics.Raycast(ray, out info, ASConfigAddon.Config.MaxDistance + 1);
+            var hit = Physics.Raycast(ray, out info, Config.MaxDistance + 1);
             var hittedPart = hit ? PartFromHit(info) : null;
             var angle = Vector3.Angle(dir, originUp);
             return new RaycastResult

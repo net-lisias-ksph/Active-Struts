@@ -1,4 +1,6 @@
-﻿using ActiveStruts.Modules;
+﻿using System.Collections.Generic;
+using System.Linq;
+using ActiveStruts.Modules;
 using ActiveStruts.Util;
 using UnityEngine;
 
@@ -12,6 +14,9 @@ namespace ActiveStruts.Addons
         public static ModuleActiveStrut CurrentTargeter { get; set; }
         public static AddonMode Mode { get; set; }
         public static Vector3 Origin { get; set; }
+        private int _targetHighlightRemoveCounter;
+        private List<Part> _targetHighlightedParts;
+        private const int TargetHighlightRemoveInterval = 120;
 
         //must not be static
         private void ActionMenuClosed(Part data)
@@ -20,7 +25,7 @@ namespace ActiveStruts.Addons
             {
                 return;
             }
-            var module = data.Modules[ASConfigAddon.Config.ModuleName] as ModuleActiveStrut;
+            var module = data.Modules[Config.ModuleName] as ModuleActiveStrut;
             if (module == null)
             {
                 return;
@@ -42,7 +47,7 @@ namespace ActiveStruts.Addons
             {
                 return;
             }
-            var module = data.Modules[ASConfigAddon.Config.ModuleName] as ModuleActiveStrut;
+            var module = data.Modules[Config.ModuleName] as ModuleActiveStrut;
             if (module == null)
             {
                 return;
@@ -54,6 +59,10 @@ namespace ActiveStruts.Addons
             }
             else if (!module.IsConnectionOrigin && module.Targeter != null && module.Targeter.vessel == data.vessel)
             {
+                if (module.IsTargetOnly)
+                {
+                    return;
+                }
                 module.Targeter.part.SetHighlightColor(Color.cyan);
                 module.Targeter.part.SetHighlight(true);
             }
@@ -61,24 +70,24 @@ namespace ActiveStruts.Addons
 
         private static bool IsValidPosition(RaycastResult raycast)
         {
-            var valid = raycast.HitResult && raycast.HittedPart != null && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= ASConfigAddon.Config.MaxDistance && raycast.RayAngle <= ASConfigAddon.Config.MaxAngle;
+            var valid = raycast.HitResult && raycast.HittedPart != null && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= Config.MaxDistance && raycast.RayAngle <= Config.MaxAngle;
             switch (Mode)
             {
                 case AddonMode.Link:
                 {
-                    if (raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(ASConfigAddon.Config.ModuleName))
+                    if (raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(Config.ModuleName))
                     {
-                        var moduleActiveStrut = raycast.HittedPart.Modules[ASConfigAddon.Config.ModuleName] as ModuleActiveStrut;
+                        var moduleActiveStrut = raycast.HittedPart.Modules[Config.ModuleName] as ModuleActiveStrut;
                         if (moduleActiveStrut != null)
                         {
-                            valid = valid && raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(ASConfigAddon.Config.ModuleName) && moduleActiveStrut.IsConnectionFree;
+                            valid = valid && raycast.HittedPart != null && raycast.HittedPart.Modules.Contains(Config.ModuleName) && moduleActiveStrut.IsConnectionFree;
                         }
                     }
                 }
                     break;
                 case AddonMode.FreeAttach:
                 {
-                    valid = valid && !raycast.HittedPart.Modules.Contains(ASConfigAddon.Config.ModuleName);
+                    valid = valid && !raycast.HittedPart.Modules.Contains(Config.ModuleName);
                 }
                     break;
             }
@@ -99,20 +108,36 @@ namespace ActiveStruts.Addons
 
         public void Start()
         {
+            _targetHighlightRemoveCounter = TargetHighlightRemoveInterval;
+            _targetHighlightedParts = new List<Part>();
             GameEvents.onPartActionUICreate.Add(this.ActionMenuCreated);
             GameEvents.onPartActionUIDismiss.Add(this.ActionMenuClosed);
             _connector = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             _connector.name = "ASConn";
             DestroyImmediate(_connector.collider);
-            _connector.transform.localScale = new Vector3((float) ASConfigAddon.Config.ConnectorDimension, (float) ASConfigAddon.Config.ConnectorDimension, (float) ASConfigAddon.Config.ConnectorDimension);
+            _connector.transform.localScale = new Vector3( Config.ConnectorDimension, Config.ConnectorDimension,  Config.ConnectorDimension);
             var mr = _connector.GetComponent<MeshRenderer>();
             mr.name = "ASConn";
             mr.material = new Material(Shader.Find("Transparent/Diffuse")) {color = Util.Util.MakeColorTransparent(Color.green)};
             _connector.SetActive(false);
+            Debug.Log("connector created");
         }
 
         public void Update()
         {
+            if (_targetHighlightRemoveCounter > 0)
+            {
+                _targetHighlightRemoveCounter--;
+            }
+            else
+            {
+                _targetHighlightRemoveCounter = TargetHighlightRemoveInterval;
+                foreach (var targetHighlightedPart in this._targetHighlightedParts.Where(targetHighlightedPart => targetHighlightedPart != null))
+                {
+                    targetHighlightedPart.SetHighlightDefault();
+                }
+                _targetHighlightedParts.Clear();
+            }
             if (!HighLogic.LoadedSceneIsFlight || Mode == AddonMode.None || CurrentTargeter == null)
             {
                 if (this._resetAllHighlighting)
@@ -127,6 +152,10 @@ namespace ActiveStruts.Addons
                 return;
             }
             this._resetAllHighlighting = true;
+            if (Mode == AddonMode.Link)
+            {
+                _highlightCurrentTargets();
+            }
             var mp = Util.Util.GetMouseWorldPosition();
             _pointToMousePosition(mp);
             var raycast = Util.Util.PerformRaycast(CurrentTargeter.Origin.position, mp, CurrentTargeter.Origin.right);
@@ -137,7 +166,7 @@ namespace ActiveStruts.Addons
                     CurrentTargeter.AbortLink();
                     CurrentTargeter.UpdateGui();
                 }
-                if (Mode == AddonMode.FreeAttach && Input.GetKeyDown(KeyCode.Mouse1))
+                if (Mode == AddonMode.FreeAttach && Input.GetKeyDown(KeyCode.X))
                 {
                     Mode = AddonMode.None;
                     CurrentTargeter.UpdateGui();
@@ -149,9 +178,19 @@ namespace ActiveStruts.Addons
             _processUserInput(mp, raycast, validPos);
         }
 
+        private static void _highlightCurrentTargets()
+        {
+            var targets = FlightGlobals.ActiveVessel.GetAllActiveStruts().Where(m => m.Mode == Util.Mode.Target).Select(m => m.part).ToList();
+            foreach (var part in targets)
+            {
+                part.SetHighlightColor(Color.green);
+                part.SetHighlight(true);
+            }
+        }
+
         private static bool _checkForModule(Part part)
         {
-            return part.Modules.Contains(ASConfigAddon.Config.ModuleName);
+            return part.Modules.Contains(Config.ModuleName);
         }
 
         private static bool _determineColor(Vector3 mp, RaycastResult raycast)
@@ -174,6 +213,7 @@ namespace ActiveStruts.Addons
             trans.Rotate(new Vector3(0, 0, 1), 90f);
             trans.Rotate(new Vector3(1, 0, 0), 90f);
             trans.Translate(new Vector3(0f, dist, 0f));
+            Debug.Log("connector transformed");
         }
 
         private static void _processUserInput(Vector3 mp, RaycastResult raycast, bool validPos)
@@ -186,7 +226,7 @@ namespace ActiveStruts.Addons
                     {
                         if (validPos)
                         {
-                            var moduleActiveStrut = raycast.HittedPart.Modules[ASConfigAddon.Config.ModuleName] as ModuleActiveStrut;
+                            var moduleActiveStrut = raycast.HittedPart.Modules[Config.ModuleName] as ModuleActiveStrut;
                             if (moduleActiveStrut != null)
                             {
                                 moduleActiveStrut.SetAsTarget();
@@ -203,14 +243,12 @@ namespace ActiveStruts.Addons
                 {
                     if (Input.GetKeyDown(KeyCode.Mouse0))
                     {
-                        Debug.Log("[AS] user requests free attach link on " + validPos + " position");
                         if (validPos)
                         {
-                            Debug.Log("[AS] creating free attach link");
                             CurrentTargeter.PlaceFreeAttach(raycast.HittedPart, mp, raycast.DistanceFromOrigin);
                         }
                     }
-                    else if (Input.GetKeyDown(KeyCode.Mouse1))
+                    else if (Input.GetKeyDown(KeyCode.X))
                     {
                         Mode = AddonMode.None;
                     }
