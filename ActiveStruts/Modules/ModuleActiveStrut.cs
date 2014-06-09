@@ -22,6 +22,7 @@ THE SOFTWARE.
 */
 
 using System;
+using System.Linq;
 using ActiveStruts.Addons;
 using ActiveStruts.Util;
 using UnityEngine;
@@ -261,6 +262,22 @@ namespace ActiveStruts.Modules
             this._jointBrokeForce = breakForce;
         }
 
+        private void ResetActiveStrutToDefault()
+        {
+            this.Target = null;
+            this.Targeter = null;
+            this.IsConnectionOrigin = false;
+            this.IsFreeAttached = false;
+            this.Mode = Mode.Unlinked;
+            this.IsHalfWayExtended = false;
+            this.Id = Guid.NewGuid().ToString();
+            this.LinkType = LinkType.None;
+            this.OldTargeter = null;
+            this.FreeAttachTarget = null;
+            this.IsFreeAttached = false;
+            this.IsLinked = false;
+        }
+
         public override void OnStart(StartState state)
         {
             if (!this.IsTargetOnly)
@@ -271,8 +288,8 @@ namespace ActiveStruts.Modules
             }
             if (HighLogic.LoadedSceneIsEditor)
             {
-                this.part.OnEditorAttach += this._processEditorAttach;
-                this.part.OnEditorDestroy += this._processEditorDestroy;
+                this.part.OnEditorAttach += this.ProcessOnPartCopy;
+                //this.part.OnEditorDestroy += this._processEditorDestroy;
             }
             this.Origin = this.part.transform;
             this._delayedStartFlag = true;
@@ -739,15 +756,15 @@ namespace ActiveStruts.Modules
             this.UpdateGui();
         }
 
-        private void _processEditorAttach()
-        {
-            ActiveStrutsEditorAddon.AddModuleActiveStrut(this);
-        }
+        //private void _processEditorAttach()
+        //{
+        //    ActiveStrutsEditorAddon.AddModuleActiveStrut(this);
+        //}
 
-        private void _processEditorDestroy()
-        {
-            ActiveStrutsEditorAddon.RemoveModuleActiveStrut(this);
-        }
+        //private void _processEditorDestroy()
+        //{
+        //    ActiveStrutsEditorAddon.RemoveModuleActiveStrut(this);
+        //}
 
         private void _realignStrut()
         {
@@ -780,9 +797,13 @@ namespace ActiveStruts.Modules
             }
         }
 
-        private void test()
+        public void ProcessOnPartCopy()
         {
-            throw new NotImplementedException();
+            var allModules = Util.Util.GetAllActiveStruts();
+            if (allModules != null && allModules.Any(m => m.ID == this.ID))
+            {
+                ResetActiveStrutToDefault();
+            }
         }
     }
 }

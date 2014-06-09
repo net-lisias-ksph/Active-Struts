@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using ActiveStruts.Addons;
 using UnityEngine;
 
@@ -43,18 +44,26 @@ namespace ActiveStruts.Modules
             if (HighLogic.LoadedSceneIsEditor)
             {
                 this.part.OnEditorAttach += this._processEditorAttach;
-                this.part.OnEditorDestroy += this._processEditorDestroy;
+                //this.part.OnEditorDestroy += this._processEditorDestroy;
             }
         }
 
         private void _processEditorAttach()
         {
-            ActiveStrutsEditorAddon.AddModuleActiveStrutFreeAttachTarget(this);
+            var allTargets = Util.Util.GetAllFreeAttachTargets();
+            if (allTargets == null)
+            {
+                return;
+            }
+            if (allTargets.Any(t => t.ID == this.ID))
+            {
+                this.ID = Guid.NewGuid();
+            }
         }
 
-        private void _processEditorDestroy()
-        {
-            ActiveStrutsEditorAddon.RemoveModuleActiveStrutFreeAttachTarget(this);
-        }
+        //private void _processEditorDestroy()
+        //{
+        //    ActiveStrutsEditorAddon.RemoveModuleActiveStrutFreeAttachTarget(this);
+        //}
     }
 }

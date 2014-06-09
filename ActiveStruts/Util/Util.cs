@@ -75,7 +75,12 @@ namespace ActiveStruts.Util
             {
                 return FlightGlobals.ActiveVessel.Parts.Where(p => p.Modules.Contains(Config.Instance.ModuleName)).Select(p => p.Modules[Config.Instance.ModuleName] as ModuleActiveStrut).ToList();
             }
-            return HighLogic.LoadedSceneIsEditor ? ActiveStrutsEditorAddon.GetAllActiveStruts() : new List<ModuleActiveStrut>();
+            if (!HighLogic.LoadedSceneIsEditor)
+            {
+                return new List<ModuleActiveStrut>();
+            }
+            var partList = ListEditorParts(true);
+            return partList.Where(p => p.Modules.Contains(Config.Instance.ModuleName)).Select(p => p.Modules[Config.Instance.ModuleName] as ModuleActiveStrut).ToList();
         }
 
         public static List<ModuleActiveStrutFreeAttachTarget> GetAllFreeAttachTargets()
@@ -87,7 +92,12 @@ namespace ActiveStruts.Util
                                  .Select(p => p.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget)
                                  .ToList();
             }
-            return HighLogic.LoadedSceneIsEditor ? ActiveStrutsEditorAddon.GetAllFreeAttachTargets() : new List<ModuleActiveStrutFreeAttachTarget>();
+            if (!HighLogic.LoadedSceneIsEditor)
+            {
+                return new List<ModuleActiveStrutFreeAttachTarget>();
+            }
+            var partList = ListEditorParts(true);
+            return partList.Where(p => p.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget)).Select(p => p.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget).ToList();
         }
 
         public static List<ModuleActiveStrut> GetAllPossibleTargets(this ModuleActiveStrut origin)

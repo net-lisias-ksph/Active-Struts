@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using ActiveStruts.Modules;
 using ActiveStruts.Util;
@@ -154,6 +155,20 @@ namespace ActiveStruts.Addons
             {
                 return;
             }
+            if (HighLogic.LoadedSceneIsEditor)
+            {
+                try
+                {
+                    foreach (var activeStrut in Util.Util.GetAllActiveStruts())
+                    {
+                        activeStrut.OnUpdate();
+                    }
+                }
+                catch (NullReferenceException)
+                {
+                    //happens onload, ignore for the moment...
+                }
+            }
             if (this._targetHighlightRemoveCounter > 0)
             {
                 this._targetHighlightRemoveCounter--;
@@ -161,11 +176,19 @@ namespace ActiveStruts.Addons
             else
             {
                 this._targetHighlightRemoveCounter = TargetHighlightRemoveInterval;
-                foreach (var targetHighlightedPart in this._targetHighlightedParts.Where(targetHighlightedPart => targetHighlightedPart != null))
+                var resetList = new List<Part>();
+                if (this._targetHighlightedParts != null)
+                {
+                    resetList = this._targetHighlightedParts.Where(targetHighlightedPart => targetHighlightedPart != null).ToList();
+                }
+                foreach (var targetHighlightedPart in resetList)
                 {
                     targetHighlightedPart.SetHighlightDefault();
                 }
-                this._targetHighlightedParts.Clear();
+                if (this._targetHighlightedParts != null)
+                {
+                    this._targetHighlightedParts.Clear();
+                }
             }
             if (Mode == AddonMode.None || CurrentTargeter == null)
             {
