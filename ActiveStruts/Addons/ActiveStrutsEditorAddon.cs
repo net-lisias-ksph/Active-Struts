@@ -91,11 +91,10 @@ namespace ActiveStruts.Addons
             }
         }
 
-        //public void OnDestroy()
-        //{
-        //    //GameEvents.onPartAttach.Remove(this.ProcessPartAttach);
-        //    //GameEvents.onPartRemove.Remove(this.ProcessPartRemove);
-        //}
+        public void OnDestroy()
+        {
+            InputLockManager.RemoveControlLock(Config.Instance.EditorInputLockId);
+        }
 
         ////must not be static
         //private void ProcessPartAttach(GameEvents.HostTargetAction<Part, Part> data)

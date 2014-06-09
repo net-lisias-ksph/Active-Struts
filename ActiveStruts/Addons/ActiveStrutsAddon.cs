@@ -101,7 +101,7 @@ namespace ActiveStruts.Addons
                     break;
                 case AddonMode.FreeAttach:
                 {
-                    valid = valid && !raycast.HittedPart.Modules.Contains(Config.Instance.ModuleName);
+                    valid = valid && !raycast.HittedPart.Modules.Contains(Config.Instance.ModuleName) && raycast.HittedPart.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget);
                     if (valid)
                     {
                         var res = Util.Util.PerformRaycast(CurrentTargeter.Origin.position, raycast.HittedPart.transform.position, CurrentTargeter.Origin.right);
