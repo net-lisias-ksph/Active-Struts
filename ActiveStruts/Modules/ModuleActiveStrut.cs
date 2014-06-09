@@ -262,22 +262,6 @@ namespace ActiveStruts.Modules
             this._jointBrokeForce = breakForce;
         }
 
-        private void ResetActiveStrutToDefault()
-        {
-            this.Target = null;
-            this.Targeter = null;
-            this.IsConnectionOrigin = false;
-            this.IsFreeAttached = false;
-            this.Mode = Mode.Unlinked;
-            this.IsHalfWayExtended = false;
-            this.Id = Guid.NewGuid().ToString();
-            this.LinkType = LinkType.None;
-            this.OldTargeter = null;
-            this.FreeAttachTarget = null;
-            this.IsFreeAttached = false;
-            this.IsLinked = false;
-        }
-
         public override void OnStart(StartState state)
         {
             if (!this.IsTargetOnly)
@@ -289,7 +273,6 @@ namespace ActiveStruts.Modules
             if (HighLogic.LoadedSceneIsEditor)
             {
                 this.part.OnEditorAttach += this.ProcessOnPartCopy;
-                //this.part.OnEditorDestroy += this._processEditorDestroy;
             }
             this.Origin = this.part.transform;
             this._delayedStartFlag = true;
@@ -377,15 +360,10 @@ namespace ActiveStruts.Modules
             lock (this._freeAttachStrutUpdateLock)
             {
                 ActiveStrutsAddon.Mode = AddonMode.None;
-                //if (!hittedPart.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget))
-                //{
-                //    hittedPart.AddModule(Config.Instance.ModuleActiveStrutFreeAttachTarget);
-                //}
                 var target = hittedPart.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget;
                 if (target != null)
                 {
                     this.FreeAttachTarget = target;
-                    //ActiveStrutsEditorAddon.AddModuleActiveStrutFreeAttachTarget(target);
                 }
                 this.Mode = Mode.Linked;
                 this.IsLinked = true;
@@ -405,24 +383,29 @@ namespace ActiveStruts.Modules
             this.UpdateGui();
         }
 
+        public void ProcessOnPartCopy()
+        {
+            var allModules = Util.Util.GetAllActiveStruts();
+            if (allModules != null && allModules.Any(m => m.ID == this.ID))
+            {
+                this.ResetActiveStrutToDefault();
+            }
+        }
+
         private void Reconnect()
         {
             if (this.IsFreeAttached)
             {
                 if (this.FreeAttachTarget != null)
                 {
-                    Debug.Log("[AS] should reconnect free attach strut");
-                    var check = this.CheckFreeAttachPoint();
                     var rayRes = Util.Util.PerformRaycast(this.Origin.position, this.FreeAttachTarget.PartOrigin.position, this.Origin.right);
                     if (rayRes.HitCurrentVessel && rayRes.HittedPart != null && rayRes.DistanceFromOrigin <= Config.Instance.MaxDistance)
                     {
-                        Debug.Log("[AS] linking free attach strut now...");
                         this.PlaceFreeAttach(rayRes.HittedPart, rayRes.Hit.point);
                         this.UpdateGui();
                         return;
                     }
                 }
-                Debug.Log("[AS] free attach target seems to be null");
                 this.IsFreeAttached = false;
                 this.Mode = Mode.Unlinked;
                 this.IsConnectionOrigin = false;
@@ -457,6 +440,22 @@ namespace ActiveStruts.Modules
                 }
             }
             this.UpdateGui();
+        }
+
+        private void ResetActiveStrutToDefault()
+        {
+            this.Target = null;
+            this.Targeter = null;
+            this.IsConnectionOrigin = false;
+            this.IsFreeAttached = false;
+            this.Mode = Mode.Unlinked;
+            this.IsHalfWayExtended = false;
+            this.Id = Guid.NewGuid().ToString();
+            this.LinkType = LinkType.None;
+            this.OldTargeter = null;
+            this.FreeAttachTarget = null;
+            this.IsFreeAttached = false;
+            this.IsLinked = false;
         }
 
         [KSPEvent(name = "SetAsTarget", active = false, guiName = "Set as Target", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = 50)]
@@ -756,16 +755,6 @@ namespace ActiveStruts.Modules
             this.UpdateGui();
         }
 
-        //private void _processEditorAttach()
-        //{
-        //    ActiveStrutsEditorAddon.AddModuleActiveStrut(this);
-        //}
-
-        //private void _processEditorDestroy()
-        //{
-        //    ActiveStrutsEditorAddon.RemoveModuleActiveStrut(this);
-        //}
-
         private void _realignStrut()
         {
             if (this.IsFreeAttached)
@@ -794,15 +783,6 @@ namespace ActiveStruts.Modules
                     this.CreateStrut(this.Target.Origin.position, 0.5f);
                     this.Target.CreateStrut(this.Origin.position, 0.5f);
                 }
-            }
-        }
-
-        public void ProcessOnPartCopy()
-        {
-            var allModules = Util.Util.GetAllActiveStruts();
-            if (allModules != null && allModules.Any(m => m.ID == this.ID))
-            {
-                ResetActiveStrutToDefault();
             }
         }
     }

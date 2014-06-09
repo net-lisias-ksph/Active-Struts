@@ -134,8 +134,6 @@ namespace ActiveStruts.Util
             _load();
         }
 
-        // ReSharper disable once InconsistentNaming
-
         private static bool _configFileExists()
         {
             return File.Exists(ConfigFilePath);

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Linq;
-using ActiveStruts.Addons;
 using UnityEngine;
 
 namespace ActiveStruts.Modules
@@ -44,7 +43,6 @@ namespace ActiveStruts.Modules
             if (HighLogic.LoadedSceneIsEditor)
             {
                 this.part.OnEditorAttach += this._processEditorAttach;
-                //this.part.OnEditorDestroy += this._processEditorDestroy;
             }
         }
 
@@ -60,10 +58,5 @@ namespace ActiveStruts.Modules
                 this.ID = Guid.NewGuid();
             }
         }
-
-        //private void _processEditorDestroy()
-        //{
-        //    ActiveStrutsEditorAddon.RemoveModuleActiveStrutFreeAttachTarget(this);
-        //}
     }
 }
