@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using ActiveStruts.Addons;
 using UnityEngine;
 
 namespace ActiveStruts.Modules
@@ -34,6 +32,29 @@ namespace ActiveStruts.Modules
         public Rigidbody PartRigidbody
         {
             get { return this.part.rigidbody; }
+        }
+
+        public override void OnStart(StartState state)
+        {
+            if (this.Id == Guid.Empty.ToString())
+            {
+                this.Id = Guid.NewGuid().ToString();
+            }
+            if (HighLogic.LoadedSceneIsEditor)
+            {
+                this.part.OnEditorAttach += this._processEditorAttach;
+                this.part.OnEditorDestroy += this._processEditorDestroy;
+            }
+        }
+
+        private void _processEditorAttach()
+        {
+            ActiveStrutsEditorAddon.AddModuleActiveStrutFreeAttachTarget(this);
+        }
+
+        private void _processEditorDestroy()
+        {
+            ActiveStrutsEditorAddon.RemoveModuleActiveStrutFreeAttachTarget(this);
         }
     }
 }

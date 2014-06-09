@@ -56,6 +56,19 @@ namespace ActiveStruts.Util
                    currentDistance <= Config.Instance.MaxDistance;
         }
 
+        public static bool EditorAboutToAttach(bool moveToo = false)
+        {
+            return HighLogic.LoadedSceneIsEditor &&
+                   EditorLogic.SelectedPart != null &&
+                   (EditorLogic.SelectedPart.potentialParent != null ||
+                    (moveToo && EditorLogic.SelectedPart == EditorLogic.startPod));
+        }
+
+        public static ModuleActiveStrutFreeAttachTarget FindFreeAttachTarget(Guid guid)
+        {
+            return GetAllFreeAttachTargets().Find(m => m.ID == guid);
+        }
+
         public static List<ModuleActiveStrut> GetAllActiveStruts()
         {
             if (HighLogic.LoadedSceneIsFlight)
@@ -63,6 +76,18 @@ namespace ActiveStruts.Util
                 return FlightGlobals.ActiveVessel.Parts.Where(p => p.Modules.Contains(Config.Instance.ModuleName)).Select(p => p.Modules[Config.Instance.ModuleName] as ModuleActiveStrut).ToList();
             }
             return HighLogic.LoadedSceneIsEditor ? ActiveStrutsEditorAddon.GetAllActiveStruts() : new List<ModuleActiveStrut>();
+        }
+
+        public static List<ModuleActiveStrutFreeAttachTarget> GetAllFreeAttachTargets()
+        {
+            if (HighLogic.LoadedSceneIsFlight)
+            {
+                return
+                    FlightGlobals.ActiveVessel.Parts.Where(p => p.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget))
+                                 .Select(p => p.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget)
+                                 .ToList();
+            }
+            return HighLogic.LoadedSceneIsEditor ? ActiveStrutsEditorAddon.GetAllFreeAttachTargets() : new List<ModuleActiveStrutFreeAttachTarget>();
         }
 
         public static List<ModuleActiveStrut> GetAllPossibleTargets(this ModuleActiveStrut origin)
@@ -142,6 +167,25 @@ namespace ActiveStruts.Util
             return raycast.HitResult && raycast.HittedPart == possibleTarget.part && raycast.DistanceFromOrigin <= Config.Instance.MaxDistance && raycast.RayAngle <= Config.Instance.MaxAngle && raycast.HitCurrentVessel;
         }
 
+        public static List<Part> ListEditorParts(bool includeSelected)
+        {
+            var list = new List<Part>();
+            if (EditorLogic.startPod)
+            {
+                RecursePartList(list, EditorLogic.startPod);
+            }
+            if (!includeSelected || !EditorAboutToAttach())
+            {
+                return list;
+            }
+            RecursePartList(list, EditorLogic.SelectedPart);
+            foreach (var sym in EditorLogic.SelectedPart.symmetryCounterparts)
+            {
+                RecursePartList(list, sym);
+            }
+            return list;
+        }
+
         public static Color MakeColorTransparent(Color color)
         {
             var rgba = GetRgbaFromColor(color);
@@ -187,6 +231,15 @@ namespace ActiveStruts.Util
                    };
         }
 
+        private static void RecursePartList(ICollection<Part> list, Part part)
+        {
+            list.Add(part);
+            foreach (var p in part.children)
+            {
+                RecursePartList(list, p);
+            }
+        }
+
         public static void ResetAllFromTargeting()
         {
             foreach (var moduleActiveStrut in GetAllActiveStruts().Where(m => m.Mode == Mode.Target))
@@ -196,24 +249,6 @@ namespace ActiveStruts.Util
                 moduleActiveStrut.UpdateGui();
                 moduleActiveStrut.Targeter = moduleActiveStrut.OldTargeter;
             }
-        }
-
-        public static List<ModuleActiveStrutFreeAttachTarget> GetAllFreeAttachTargets()
-        {
-            if (HighLogic.LoadedSceneIsFlight)
-            {
-                return
-                    FlightGlobals.ActiveVessel.Parts.Where(p => p.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget))
-                                 .Select(p => p.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget)
-                                 .ToList();
-            }
-            return HighLogic.LoadedSceneIsEditor ? ActiveStrutsEditorAddon.GetAllFreeAttachTargets() : new List<ModuleActiveStrutFreeAttachTarget>();
-        }
-
-        public static ModuleActiveStrutFreeAttachTarget FindFreeAttachTarget(Guid guid)
-        {
-            Debug.Log("[AS] freeattachtarget guid: " + guid);
-            return GetAllFreeAttachTargets().Find(m => m.ID == guid);
         }
     }
 }

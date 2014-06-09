@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Threading;
 
@@ -8,16 +7,31 @@ namespace ActiveStruts.Util
 {
     public class Config
     {
-        private class SettingsEntry
-        {
-            public object Value { get; set; }
-            public object DefaultValue { get; private set; }
+        private const string _freeAttachHelpText = "Click left on a valid position to establish a link. Press 'x' to abort.";
+        private const string _linkHelpText = "Click left on a possible target to establish a link. Press 'x' to abort. You can also right click -> 'Set as Target' on a valid target and right click -> 'Abort' on the targeter.";
+        private const string _moduleName = "ModuleActiveStrut";
+        private const string _editorInputLockId = "[AS] temp editor lock";
 
-            public SettingsEntry(object defaultValue)
-            {
-                this.DefaultValue = defaultValue;
-            }
-        }
+        // ReSharper disable once InconsistentNaming
+        private const string _moduleActiveStrutFreeAttachTarget = "ModuleActiveStrutFreeAttachTarget";
+        private const string ConfigFilePath = "GameData/ActiveStruts/Plugin/ActiveStruts.cfg";
+        private const string SettingsNodeName = "ACTIVE_STRUTS_SETTINGS";
+        private static readonly Dictionary<string, SettingsEntry> Values = new Dictionary<string, SettingsEntry>
+                                                                           {
+                                                                               {"MaxDistance", new SettingsEntry(15)},
+                                                                               {"MaxAngle", new SettingsEntry(95)},
+                                                                               {"WeakJointStrength", new SettingsEntry(50)},
+                                                                               {"NormalJointStrength", new SettingsEntry(500)},
+                                                                               {"MaximalJointStrength", new SettingsEntry(2000)},
+                                                                               {"ConnectorDimension", new SettingsEntry(0.5f)},
+                                                                               {"ColorTransparency", new SettingsEntry(0.5f)},
+                                                                               {"FreeAttachDistanceTolerance", new SettingsEntry(0.1f)},
+                                                                               {"FreeAttachStrutExtension", new SettingsEntry(0.05f)},
+                                                                               {"StartDelay", new SettingsEntry(60)},
+                                                                               {"StrutRealignInterval", new SettingsEntry(5)}
+                                                                           };
+
+        private static Config _instance;
 
         public float ColorTransparency
         {
@@ -29,13 +43,17 @@ namespace ActiveStruts.Util
             get { return (float) _getValue<double>("ConnectorDimension"); }
         }
 
+        public string EditorInputLockId
+        {
+            get { return _editorInputLockId; }
+        }
+
         public float FreeAttachDistanceTolerance
         {
             get { return (float) _getValue<double>("FreeAttachDistanceTolerance"); }
         }
 
         // ReSharper disable once InconsistentNaming
-        private const string _freeAttachHelpText = "Click left on a valid position to establish a link. Press 'x' to abort.";
 
         public string FreeAttachHelpText
         {
@@ -47,8 +65,12 @@ namespace ActiveStruts.Util
             get { return (float) _getValue<double>("FreeAttachStrutExtension"); }
         }
 
+        public static Config Instance
+        {
+            get { return _instance ?? (_instance = new Config()); }
+        }
+
         // ReSharper disable once InconsistentNaming
-        private const string _linkHelpText = "Click left on a possible target to establish a link. Press 'x' to abort. You can also right click -> 'Set as Target' on a valid target and right click -> 'Abort' on the targeter.";
 
         public string LinkHelpText
         {
@@ -70,8 +92,12 @@ namespace ActiveStruts.Util
             get { return (float) _getValue<double>("MaximalJointStrength"); }
         }
 
+        public string ModuleActiveStrutFreeAttachTarget
+        {
+            get { return _moduleActiveStrutFreeAttachTarget; }
+        }
+
         // ReSharper disable once InconsistentNaming
-        private const string _moduleName = "ModuleActiveStrut";
 
         public string ModuleName
         {
@@ -98,44 +124,21 @@ namespace ActiveStruts.Util
             get { return (float) _getValue<double>("WeakJointStrength"); }
         }
 
-        // ReSharper disable once InconsistentNaming
-        private const string _editorInputLockId = "[AS] temp editor lock";
-
-        // ReSharper disable once InconsistentNaming
-        private const string _moduleActiveStrutFreeAttachTarget = "ModuleActiveStrutFreeAttachTarget";
-
-        public string ModuleActiveStrutFreeAttachTarget
+        private Config()
         {
-            get { return _moduleActiveStrutFreeAttachTarget; }
+            if (!_configFileExists())
+            {
+                _initialSave();
+                Thread.Sleep(500);
+            }
+            _load();
         }
 
-        public string EditorInputLockId
+        // ReSharper disable once InconsistentNaming
+
+        private static bool _configFileExists()
         {
-            get { return _editorInputLockId; }
-        }
-
-        private const string ConfigFilePath = "GameData/ActiveStruts/Plugin/ActiveStruts.cfg";
-        private const string SettingsNodeName = "ACTIVE_STRUTS_SETTINGS";
-        private static readonly Dictionary<string, SettingsEntry> Values = new Dictionary<string, SettingsEntry>
-                                                                           {
-                                                                               {"MaxDistance", new SettingsEntry(15)},
-                                                                               {"MaxAngle", new SettingsEntry(95)},
-                                                                               {"WeakJointStrength", new SettingsEntry(50)},
-                                                                               {"NormalJointStrength", new SettingsEntry(500)},
-                                                                               {"MaximalJointStrength", new SettingsEntry(2000)},
-                                                                               {"ConnectorDimension", new SettingsEntry(0.5f)},
-                                                                               {"ColorTransparency", new SettingsEntry(0.5f)},
-                                                                               {"FreeAttachDistanceTolerance", new SettingsEntry(0.1f)},
-                                                                               {"FreeAttachStrutExtension", new SettingsEntry(0.05f)},
-                                                                               {"StartDelay", new SettingsEntry(60)},
-                                                                               {"StrutRealignInterval", new SettingsEntry(5)}
-                                                                           };
-
-        private static Config _instance;
-
-        public static Config Instance
-        {
-            get { return _instance ?? (_instance = new Config()); }
+            return File.Exists(ConfigFilePath);
         }
 
         private static T _getValue<T>(string key)
@@ -147,11 +150,6 @@ namespace ActiveStruts.Util
             var val = Values[key];
             var ret = val.Value ?? val.DefaultValue;
             return (T) Convert.ChangeType(ret, typeof(T));
-        }
-
-        private static bool _configFileExists()
-        {
-            return File.Exists(ConfigFilePath);
         }
 
         private static void _initialSave()
@@ -179,14 +177,15 @@ namespace ActiveStruts.Util
             }
         }
 
-        private Config()
+        private class SettingsEntry
         {
-            if (!_configFileExists())
+            public object DefaultValue { get; private set; }
+            public object Value { get; set; }
+
+            public SettingsEntry(object defaultValue)
             {
-                _initialSave();
-                Thread.Sleep(500);
+                this.DefaultValue = defaultValue;
             }
-            _load();
         }
     }
 }

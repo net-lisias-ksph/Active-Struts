@@ -56,7 +56,7 @@ namespace ActiveStruts.Addons
             {
                 module.Target.part.SetHighlightColor(Color.cyan);
                 module.Target.part.SetHighlight(true);
-                _targetHighlightedParts.Add(module.Target.part);
+                this._targetHighlightedParts.Add(module.Target.part);
             }
             else if (module.Targeter != null && !module.IsConnectionOrigin && (HighLogic.LoadedSceneIsEditor || module.Targeter.part.vessel == data.vessel))
             {
@@ -66,8 +66,20 @@ namespace ActiveStruts.Addons
                 }
                 module.Targeter.part.SetHighlightColor(Color.cyan);
                 module.Targeter.part.SetHighlight(true);
-                _targetHighlightedParts.Add(module.Targeter.part);
+                this._targetHighlightedParts.Add(module.Targeter.part);
             }
+        }
+
+        public void Awake()
+        {
+            if (!(HighLogic.LoadedSceneIsEditor || HighLogic.LoadedSceneIsFlight))
+            {
+                return;
+            }
+            this._targetHighlightRemoveCounter = TargetHighlightRemoveInterval;
+            this._targetHighlightedParts = new List<Part>();
+            GameEvents.onPartActionUICreate.Add(this.ActionMenuCreated);
+            GameEvents.onPartActionUIDismiss.Add(this.ActionMenuClosed);
         }
 
         private static bool IsValidPosition(RaycastResult raycast)
@@ -126,10 +138,6 @@ namespace ActiveStruts.Addons
             {
                 return;
             }
-            this._targetHighlightRemoveCounter = TargetHighlightRemoveInterval;
-            this._targetHighlightedParts = new List<Part>();
-            GameEvents.onPartActionUICreate.Add(this.ActionMenuCreated);
-            GameEvents.onPartActionUIDismiss.Add(this.ActionMenuClosed);
             _connector = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             _connector.name = "ASConn";
             DestroyImmediate(_connector.collider);
@@ -253,7 +261,7 @@ namespace ActiveStruts.Addons
                 {
                     if (Input.GetKeyDown(KeyCode.Mouse0))
                     {
-                        if (validPos)
+                        if (validPos && raycast.HittedPart.Modules.Contains(Config.Instance.ModuleName))
                         {
                             var moduleActiveStrut = raycast.HittedPart.Modules[Config.Instance.ModuleName] as ModuleActiveStrut;
                             if (moduleActiveStrut != null)

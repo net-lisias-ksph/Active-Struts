@@ -22,7 +22,6 @@ THE SOFTWARE.
 */
 
 using System;
-using System.Linq;
 using ActiveStruts.Addons;
 using ActiveStruts.Util;
 using UnityEngine;
@@ -32,6 +31,7 @@ namespace ActiveStruts.Modules
     public class ModuleActiveStrut : PartModule
     {
         private const ControlTypes EditorLockMask = ControlTypes.EDITOR_PAD_PICK_PLACE | ControlTypes.EDITOR_ICON_PICK;
+        private readonly object _freeAttachStrutUpdateLock = new object();
         [KSPField(isPersistant = true)] public string FreeAttachTargetId = Guid.Empty.ToString();
         [KSPField(isPersistant = true)] public string Id = Guid.Empty.ToString();
         [KSPField(isPersistant = true)] public bool IsConnectionOrigin = false;
@@ -49,6 +49,7 @@ namespace ActiveStruts.Modules
         [KSPField(isPersistant = true)] public string TargeterId = Guid.NewGuid().ToString();
         private bool _delayedStartFlag;
         private Part _freeAttachPart;
+        private ModuleActiveStrutFreeAttachTarget _freeAttachTarget;
         private ConfigurableJoint _joint;
         private float _jointBrokeForce;
         private bool _jointBroken;
@@ -56,8 +57,6 @@ namespace ActiveStruts.Modules
         private Mode _mode = Mode.Undefined;
         private int _strutRealignCounter;
         private int _ticksForDelayedStart;
-        private readonly object _freeAttachStrutUpdateLock = new object();
-        private ModuleActiveStrutFreeAttachTarget _freeAttachTarget;
 
         private Part FreeAttachPart
         {
@@ -82,7 +81,7 @@ namespace ActiveStruts.Modules
             set
             {
                 this.FreeAttachTargetId = value != null ? value.ID.ToString() : Guid.Empty.ToString();
-                _freeAttachTarget = value;
+                this._freeAttachTarget = value;
             }
         }
 
@@ -191,7 +190,7 @@ namespace ActiveStruts.Modules
             this.Strut.localScale = Vector3.zero;
         }
 
-        [KSPEvent(name = "FreeAttach", active = false, guiActiveEditor = true, guiName = "FreeAttach Link", guiActiveUnfocused = true, unfocusedRange = 50)]
+        [KSPEvent(name = "FreeAttach", active = false, guiActiveEditor = false, guiName = "FreeAttach Link", guiActiveUnfocused = true, unfocusedRange = 50)]
         public void FreeAttach()
         {
             if (HighLogic.LoadedSceneIsEditor)
@@ -237,7 +236,7 @@ namespace ActiveStruts.Modules
             }
         }
 
-        [KSPEvent(name = "Link", active = false, guiName = "Link", guiActiveEditor = true, guiActiveUnfocused = true, unfocusedRange = 50)]
+        [KSPEvent(name = "Link", active = false, guiName = "Link", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = 50)]
         public void Link()
         {
             if (HighLogic.LoadedSceneIsEditor)
@@ -264,17 +263,21 @@ namespace ActiveStruts.Modules
 
         public override void OnStart(StartState state)
         {
-            Debug.Log("[AS] test if OnStart gets ever called");
             if (!this.IsTargetOnly)
             {
                 this.Strut = this.part.FindModelTransform(this.StrutName);
                 DestroyImmediate(this.Strut.collider);
                 this.DestroyStrut();
             }
+            if (HighLogic.LoadedSceneIsEditor)
+            {
+                this.part.OnEditorAttach += this._processEditorAttach;
+                this.part.OnEditorDestroy += this._processEditorDestroy;
+            }
             this.Origin = this.part.transform;
             this._delayedStartFlag = true;
             this._ticksForDelayedStart = HighLogic.LoadedSceneIsEditor ? 0 : Config.Instance.StartDelay;
-            this._strutRealignCounter = Config.Instance.StrutRealignInterval*(HighLogic.LoadedSceneIsEditor ? 6 : 0);
+            this._strutRealignCounter = Config.Instance.StrutRealignInterval*(HighLogic.LoadedSceneIsEditor ? 3 : 0);
         }
 
         public override void OnUpdate()
@@ -354,18 +357,18 @@ namespace ActiveStruts.Modules
 
         public void PlaceFreeAttach(Part hittedPart, Vector3 hitPosition)
         {
-            lock (_freeAttachStrutUpdateLock)
+            lock (this._freeAttachStrutUpdateLock)
             {
                 ActiveStrutsAddon.Mode = AddonMode.None;
-                if (!hittedPart.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget))
-                {
-                    hittedPart.AddModule(Config.Instance.ModuleActiveStrutFreeAttachTarget);
-                }
+                //if (!hittedPart.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget))
+                //{
+                //    hittedPart.AddModule(Config.Instance.ModuleActiveStrutFreeAttachTarget);
+                //}
                 var target = hittedPart.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget;
                 if (target != null)
                 {
                     this.FreeAttachTarget = target;
-                    ActiveStrutsEditorAddon.AddModuleActiveStrutFreeAttachTarget(target);
+                    //ActiveStrutsEditorAddon.AddModuleActiveStrutFreeAttachTarget(target);
                 }
                 this.Mode = Mode.Linked;
                 this.IsLinked = true;
@@ -393,7 +396,7 @@ namespace ActiveStruts.Modules
                 {
                     Debug.Log("[AS] should reconnect free attach strut");
                     var check = this.CheckFreeAttachPoint();
-                    var rayRes = Util.Util.PerformRaycast(Origin.position, FreeAttachTarget.PartOrigin.position, Origin.right);
+                    var rayRes = Util.Util.PerformRaycast(this.Origin.position, this.FreeAttachTarget.PartOrigin.position, this.Origin.right);
                     if (rayRes.HitCurrentVessel && rayRes.HittedPart != null && rayRes.DistanceFromOrigin <= Config.Instance.MaxDistance)
                     {
                         Debug.Log("[AS] linking free attach strut now...");
@@ -439,7 +442,7 @@ namespace ActiveStruts.Modules
             this.UpdateGui();
         }
 
-        [KSPEvent(name = "SetAsTarget", active = false, guiName = "Set as Target", guiActiveEditor = true, guiActiveUnfocused = true, unfocusedRange = 50)]
+        [KSPEvent(name = "SetAsTarget", active = false, guiName = "Set as Target", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = 50)]
         public void SetAsTarget()
         {
             this.IsLinked = true;
@@ -530,7 +533,7 @@ namespace ActiveStruts.Modules
             }
         }
 
-        [KSPEvent(name = "Unlink", active = false, guiName = "Unlink", guiActiveEditor = true, guiActiveUnfocused = true, unfocusedRange = 50)]
+        [KSPEvent(name = "Unlink", active = false, guiName = "Unlink", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = 50)]
         public void Unlink()
         {
             if (!this.IsTargetOnly && this.Target != null)
@@ -718,7 +721,7 @@ namespace ActiveStruts.Modules
             {
                 this.Id = Guid.NewGuid().ToString();
             }
-            if (this.IsLinked && !HighLogic.LoadedSceneIsEditor)
+            if (this.IsLinked) // && !HighLogic.LoadedSceneIsEditor)
             {
                 if (this.IsTargetOnly)
                 {
@@ -736,11 +739,21 @@ namespace ActiveStruts.Modules
             this.UpdateGui();
         }
 
+        private void _processEditorAttach()
+        {
+            ActiveStrutsEditorAddon.AddModuleActiveStrut(this);
+        }
+
+        private void _processEditorDestroy()
+        {
+            ActiveStrutsEditorAddon.RemoveModuleActiveStrut(this);
+        }
+
         private void _realignStrut()
         {
             if (this.IsFreeAttached)
             {
-                lock (_freeAttachStrutUpdateLock)
+                lock (this._freeAttachStrutUpdateLock)
                 {
                     var targetPos = Util.Util.PerformRaycast(this.Origin.position, this.FreeAttachTarget.PartOrigin.position, this.Origin.right).Hit.point;
                     this.DestroyStrut();
@@ -765,6 +778,11 @@ namespace ActiveStruts.Modules
                     this.Target.CreateStrut(this.Origin.position, 0.5f);
                 }
             }
+        }
+
+        private void test()
+        {
+            throw new NotImplementedException();
         }
     }
 }
