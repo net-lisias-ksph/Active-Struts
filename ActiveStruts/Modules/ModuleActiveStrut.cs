@@ -60,6 +60,7 @@ namespace ActiveStruts.Modules
         private Mode _mode = Mode.Undefined;
         private int _strutRealignCounter;
         private int _ticksForDelayedStart;
+        //private AttachNode _jointAttachNode;
 
         private Part FreeAttachPart
         {
@@ -340,6 +341,7 @@ namespace ActiveStruts.Modules
             }
             if (this.Mode == Mode.Linked)
             {
+                //_manageAttachNode();
                 if (this.IsFreeAttached)
                 {
                     if (this.FreeAttachPart != null && (HighLogic.LoadedSceneIsEditor || this.FreeAttachPart.vessel == this.vessel))
@@ -372,6 +374,38 @@ namespace ActiveStruts.Modules
             }
         }
 
+        //private void _manageAttachNode()
+        //{
+        //    if (!this.IsConnectionOrigin || this.Mode != Mode.Linked || this.IsTargetOnly || this._jointAttachNode != null)
+        //    {
+        //        return;
+        //    }
+        //    try
+        //    {
+        //        this._jointAttachNode = new AttachNode();
+        //        this._jointAttachNode.id = Guid.NewGuid().ToString();
+        //        this._jointAttachNode.attachedPart = this.IsFreeAttached ? this.FreeAttachPart : this.Target.part;
+        //        var force = (this.IsFreeAttached ? LinkType.Weak : this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal).GetJointStrength() - 1;
+        //        this._jointAttachNode.breakingForce = this._jointAttachNode.breakingTorque = force;
+        //        this._jointAttachNode.position = this.IsFreeAttached
+        //                                             ? this.FreeAttachPart.partTransform.InverseTransformPoint(this._convertFreeAttachRayHitPointToStrutTarget())
+        //                                             : this.Target.Origin.InverseTransformPoint(this.Target.Origin.position);
+        //        var normDir = (this.Origin.position - (this.IsFreeAttached ? this._convertFreeAttachRayHitPointToStrutTarget() : this.Target.Origin.position)).normalized;
+        //        this._jointAttachNode.orientation = this.IsFreeAttached ? this.FreeAttachPart.partTransform.InverseTransformPoint(normDir) : this.Target.Origin.InverseTransformPoint(normDir);
+        //        this._jointAttachNode.size = 1;
+        //        this._jointAttachNode.ResourceXFeed = false;
+        //        this.part.attachNodes.Add(this._jointAttachNode);
+        //        this._jointAttachNode.owner = this.part;
+        //        PartJoint.Create(this.part, this.IsFreeAttached ? this.FreeAttachPart : this.Target.part, this._jointAttachNode, (AttachNode) null, AttachModes.SRF_ATTACH);
+        //    }
+        //    catch (Exception)
+        //    {
+        //        //this._jointAttachNode = null;
+        //        //creating attachjoint failed
+        //        Debug.Log("[AS] failed to create attachjoint");
+        //    }
+        //}
+
         public void PlaceFreeAttach(Part hittedPart, Vector3 hitPosition, bool overridePositionOffset = true)
         {
             lock (this._freeAttachStrutUpdateLock)
@@ -382,7 +416,7 @@ namespace ActiveStruts.Modules
                     this.FreeAttachPositionOffset = hitPosition - hittedPart.transform.position; //hittedPart.transform.position;
                     if (HighLogic.LoadedSceneIsEditor)
                     {
-                        this.FreeAttachPositionOffset = hittedPart.transform.rotation.Inverse() * this.FreeAttachPositionOffset;
+                        this.FreeAttachPositionOffset = hittedPart.transform.rotation.Inverse()*this.FreeAttachPositionOffset;
                         this.FreeAttachPositionOffsetVectorSetInEditor = true;
                     }
                     else
@@ -624,7 +658,7 @@ namespace ActiveStruts.Modules
                 this.IsLinked = false;
                 this.DestroyJoint();
                 this.DestroyStrut();
-                this.LinkType = LinkType.None;                
+                this.LinkType = LinkType.None;
                 this.UpdateGui();
                 if (this.IsConnectionOrigin)
                 {
