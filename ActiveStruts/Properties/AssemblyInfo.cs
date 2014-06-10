@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 
-[assembly: AssemblyTitle("ExtraStruts")]
+[assembly: AssemblyTitle("ActiveStruts")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("ExtraStruts")]
+[assembly: AssemblyProduct("ActiveStruts")]
 [assembly: AssemblyCopyright("Copyright © marce 2014")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]

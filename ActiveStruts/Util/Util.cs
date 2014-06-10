@@ -168,12 +168,12 @@ namespace ActiveStruts.Util
 
         public static bool IsPossibleTarget(this ModuleActiveStrut origin, ModuleActiveStrut possibleTarget)
         {
-            if (!possibleTarget.IsConnectionFree)
+            if (possibleTarget.IsConnectionFree || (possibleTarget.Targeter != null && possibleTarget.Targeter.ID == origin.ID))
             {
-                return false;
+                var raycast = PerformRaycast(origin.Origin.position, possibleTarget.Origin.position, origin.Origin.right);
+                return raycast.HitResult && raycast.HittedPart == possibleTarget.part && raycast.DistanceFromOrigin <= Config.Instance.MaxDistance && raycast.RayAngle <= Config.Instance.MaxAngle && raycast.HitCurrentVessel;
             }
-            var raycast = PerformRaycast(origin.Origin.position, possibleTarget.Origin.position, origin.Origin.right);
-            return raycast.HitResult && raycast.HittedPart == possibleTarget.part && raycast.DistanceFromOrigin <= Config.Instance.MaxDistance && raycast.RayAngle <= Config.Instance.MaxAngle && raycast.HitCurrentVessel;
+            return false;
         }
 
         public static List<Part> ListEditorParts(bool includeSelected)

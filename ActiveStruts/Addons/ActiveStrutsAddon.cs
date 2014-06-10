@@ -10,7 +10,7 @@ namespace ActiveStruts.Addons
     [KSPAddon(KSPAddon.Startup.EveryScene, false)]
     public class ActiveStrutsAddon : MonoBehaviour
     {
-        private const int TargetHighlightRemoveInterval = 180;
+        private const int TargetHighlightRemoveInterval = 700;
         private static GameObject _connector;
         private bool _resetAllHighlighting;
         private int _targetHighlightRemoveCounter;
@@ -25,6 +25,20 @@ namespace ActiveStruts.Addons
             if (!_checkForModule(data))
             {
                 return;
+            }
+            if (Mode != AddonMode.None)
+            {
+                try
+                {
+                    CurrentTargeter.AbortLink();
+                    CurrentTargeter.UpdateGui();
+                    Input.ResetInputAxes();
+                    InputLockManager.RemoveControlLock(Config.Instance.EditorInputLockId);
+                }
+                catch (Exception)
+                {
+                    //sanity reason
+                }
             }
             var module = data.Modules[Config.Instance.ModuleName] as ModuleActiveStrut;
             if (module == null)
@@ -79,8 +93,17 @@ namespace ActiveStruts.Addons
             }
             this._targetHighlightRemoveCounter = TargetHighlightRemoveInterval;
             this._targetHighlightedParts = new List<Part>();
+            _connector = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            _connector.name = "ASConn";
+            DestroyImmediate(_connector.collider);
+            _connector.transform.localScale = new Vector3(Config.Instance.ConnectorDimension, Config.Instance.ConnectorDimension, Config.Instance.ConnectorDimension);
+            var mr = _connector.GetComponent<MeshRenderer>();
+            mr.name = "ASConn";
+            mr.material = new Material(Shader.Find("Transparent/Diffuse")) {color = Util.Util.MakeColorTransparent(Color.green)};
+            _connector.SetActive(false);
             GameEvents.onPartActionUICreate.Add(this.ActionMenuCreated);
             GameEvents.onPartActionUIDismiss.Add(this.ActionMenuClosed);
+            Mode = AddonMode.None;
         }
 
         private static bool IsValidPosition(RaycastResult raycast)
@@ -133,109 +156,115 @@ namespace ActiveStruts.Addons
             OSD.Update();
         }
 
-        public void Start()
-        {
-            if (!(HighLogic.LoadedSceneIsEditor || HighLogic.LoadedSceneIsFlight))
-            {
-                return;
-            }
-            _connector = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            _connector.name = "ASConn";
-            DestroyImmediate(_connector.collider);
-            _connector.transform.localScale = new Vector3(Config.Instance.ConnectorDimension, Config.Instance.ConnectorDimension, Config.Instance.ConnectorDimension);
-            var mr = _connector.GetComponent<MeshRenderer>();
-            mr.name = "ASConn";
-            mr.material = new Material(Shader.Find("Transparent/Diffuse")) {color = Util.Util.MakeColorTransparent(Color.green)};
-            _connector.SetActive(false);
-        }
+        //public void Start()
+        //{
+        //    if (!(HighLogic.LoadedSceneIsEditor || HighLogic.LoadedSceneIsFlight))
+        //    {
+        //        return;
+        //    }
+        //    //_connector = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        //    //_connector.name = "ASConn";
+        //    //DestroyImmediate(_connector.collider);
+        //    //_connector.transform.localScale = new Vector3(Config.Instance.ConnectorDimension, Config.Instance.ConnectorDimension, Config.Instance.ConnectorDimension);
+        //    //var mr = _connector.GetComponent<MeshRenderer>();
+        //    //mr.name = "ASConn";
+        //    //mr.material = new Material(Shader.Find("Transparent/Diffuse")) {color = Util.Util.MakeColorTransparent(Color.green)};
+        //    //_connector.SetActive(false);
+        //}
 
         public void Update()
         {
-            if (!(HighLogic.LoadedSceneIsEditor || HighLogic.LoadedSceneIsFlight))
+            try
             {
-                return;
-            }
-            if (HighLogic.LoadedSceneIsEditor)
-            {
-                try
+                if (!(HighLogic.LoadedSceneIsEditor || HighLogic.LoadedSceneIsFlight))
+                {
+                    return;
+                }
+                if (HighLogic.LoadedSceneIsEditor)
                 {
                     foreach (var activeStrut in Util.Util.GetAllActiveStruts())
                     {
                         activeStrut.OnUpdate();
                     }
                 }
-                catch (NullReferenceException)
+                if (this._targetHighlightRemoveCounter > 0)
                 {
-                    //happens onload, ignore for the moment...
+                    this._targetHighlightRemoveCounter--;
                 }
-            }
-            if (this._targetHighlightRemoveCounter > 0)
-            {
-                this._targetHighlightRemoveCounter--;
-            }
-            else
-            {
-                this._targetHighlightRemoveCounter = TargetHighlightRemoveInterval;
-                var resetList = new List<Part>();
-                if (this._targetHighlightedParts != null)
+                else
                 {
-                    resetList = this._targetHighlightedParts.Where(targetHighlightedPart => targetHighlightedPart != null).ToList();
-                }
-                foreach (var targetHighlightedPart in resetList)
-                {
-                    targetHighlightedPart.SetHighlightDefault();
-                }
-                if (this._targetHighlightedParts != null)
-                {
-                    this._targetHighlightedParts.Clear();
-                }
-            }
-            if (Mode == AddonMode.None || CurrentTargeter == null)
-            {
-                if (this._resetAllHighlighting)
-                {
-                    this._resetAllHighlighting = false;
-                    foreach (var moduleActiveStrut in Util.Util.GetAllActiveStruts())
+                    this._targetHighlightRemoveCounter = TargetHighlightRemoveInterval;
+                    var resetList = new List<Part>();
+                    if (this._targetHighlightedParts != null)
                     {
-                        moduleActiveStrut.part.SetHighlightDefault();
+                        resetList = this._targetHighlightedParts.Where(targetHighlightedPart => targetHighlightedPart != null).ToList();
+                    }
+                    foreach (var targetHighlightedPart in resetList)
+                    {
+                        targetHighlightedPart.SetHighlightDefault();
+                    }
+                    if (this._targetHighlightedParts != null)
+                    {
+                        this._targetHighlightedParts.Clear();
                     }
                 }
-                _connector.SetActive(false);
-                return;
+                if (Mode == AddonMode.None || CurrentTargeter == null)
+                {
+                    if (this._resetAllHighlighting)
+                    {
+                        this._resetAllHighlighting = false;
+                        foreach (var moduleActiveStrut in Util.Util.GetAllActiveStruts())
+                        {
+                            moduleActiveStrut.part.SetHighlightDefault();
+                        }
+                    }
+                    _connector.SetActive(false);
+                    return;
+                }
+                this._resetAllHighlighting = true;
+                if (Mode == AddonMode.Link)
+                {
+                    _highlightCurrentTargets();
+                }
+                var mp = Util.Util.GetMouseWorldPosition();
+                _pointToMousePosition(mp);
+                var raycast = Util.Util.PerformRaycast(CurrentTargeter.Origin.position, mp, CurrentTargeter.Origin.right);
+                if (!raycast.HitResult || !raycast.HitCurrentVessel)
+                {
+                    var handled = false;
+                    if (Mode == AddonMode.Link && Input.GetKeyDown(KeyCode.Mouse0))
+                    {
+                        CurrentTargeter.AbortLink();
+                        CurrentTargeter.UpdateGui();
+                        handled = true;
+                    }
+                    if (Mode == AddonMode.FreeAttach && Input.GetKeyDown(KeyCode.X))
+                    {
+                        Mode = AddonMode.None;
+                        CurrentTargeter.UpdateGui();
+                        handled = true;
+                    }
+                    _connector.SetActive(false);
+                    if (HighLogic.LoadedSceneIsEditor && handled)
+                    {
+                        Input.ResetInputAxes();
+                        InputLockManager.RemoveControlLock(Config.Instance.EditorInputLockId);
+                    }
+                    return;
+                }
+                var validPos = _determineColor(mp, raycast);
+                _processUserInput(mp, raycast, validPos);
             }
-            this._resetAllHighlighting = true;
-            if (Mode == AddonMode.Link)
+            catch (NullReferenceException)
             {
-                _highlightCurrentTargets();
+                /*
+                 * For no apparent reason an exception is thrown on first load.
+                 * I found no way to circumvent this.
+                 * Since the exception has to be handled only once we are 
+                 * just entering the try block constantly which I consider 
+                 * still to be preferred over an unhandled exception.
+                 */
             }
-            var mp = Util.Util.GetMouseWorldPosition();
-            _pointToMousePosition(mp);
-            var raycast = Util.Util.PerformRaycast(CurrentTargeter.Origin.position, mp, CurrentTargeter.Origin.right);
-            if (!raycast.HitResult || !raycast.HitCurrentVessel)
-            {
-                var handled = false;
-                if (Mode == AddonMode.Link && Input.GetKeyDown(KeyCode.Mouse0))
-                {
-                    CurrentTargeter.AbortLink();
-                    CurrentTargeter.UpdateGui();
-                    handled = true;
-                }
-                if (Mode == AddonMode.FreeAttach && Input.GetKeyDown(KeyCode.X))
-                {
-                    Mode = AddonMode.None;
-                    CurrentTargeter.UpdateGui();
-                    handled = true;
-                }
-                _connector.SetActive(false);
-                if (HighLogic.LoadedSceneIsEditor && handled)
-                {
-                    Input.ResetInputAxes();
-                    InputLockManager.RemoveControlLock(Config.Instance.EditorInputLockId);
-                }
-                return;
-            }
-            var validPos = _determineColor(mp, raycast);
-            _processUserInput(mp, raycast, validPos);
         }
 
         private static bool _checkForModule(Part part)

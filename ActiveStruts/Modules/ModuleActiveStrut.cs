@@ -148,6 +148,7 @@ namespace ActiveStruts.Modules
         public void CreateJoint(Rigidbody originBody, Rigidbody targetBody, LinkType type, Vector3 anchorPosition)
         {
             this._joint = originBody.gameObject.AddComponent<ConfigurableJoint>();
+            //this._joint = part.attachJoint.Joint.rigidbody.gameObject.AddComponent<ConfigurableJoint>();
             this._joint.connectedBody = targetBody;
             this._joint.breakForce = this._joint.breakTorque = type.GetJointStrength();
             this._joint.xMotion = ConfigurableJointMotion.Locked;
@@ -390,6 +391,11 @@ namespace ActiveStruts.Modules
             {
                 this.ResetActiveStrutToDefault();
             }
+            else
+            {
+                this.Unlink();
+                this.OnUpdate();
+            }
         }
 
         private void Reconnect()
@@ -427,16 +433,23 @@ namespace ActiveStruts.Modules
                     }
                     this.CreateJoint(this.part.rigidbody, this.Target.part.rigidbody, this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal, this.Target.transform.position);
                     this.Mode = Mode.Linked;
+                    this.Target.Mode = Mode.Linked;
                     this.IsLinked = true;
                 }
             }
             else
             {
-                if (this.IsPossibleTarget(this.Targeter))
+                if (this.IsTargetOnly)
+                {
+                    this.Mode = Mode.Linked;
+                    this.IsLinked = true;
+                }
+                else if (this.IsPossibleTarget(this.Targeter))
                 {
                     this.CreateStrut(this.Targeter.Origin.position, 0.5f);
                     this.Mode = Mode.Linked;
                     this.IsLinked = true;
+                    this.LinkType = LinkType.Maximal;
                 }
             }
             this.UpdateGui();
@@ -456,6 +469,11 @@ namespace ActiveStruts.Modules
             this.FreeAttachTarget = null;
             this.IsFreeAttached = false;
             this.IsLinked = false;
+            if (!this.IsTargetOnly)
+            {
+                this.DestroyJoint();
+                this.DestroyStrut();
+            }
         }
 
         [KSPEvent(name = "SetAsTarget", active = false, guiName = "Set as Target", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = 50)]
@@ -552,11 +570,14 @@ namespace ActiveStruts.Modules
         [KSPEvent(name = "Unlink", active = false, guiName = "Unlink", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = 50)]
         public void Unlink()
         {
-            if (!this.IsTargetOnly && this.Target != null)
+            if (!this.IsTargetOnly && (this.Target != null || this.Targeter != null))
             {
                 if (this.IsConnectionOrigin && !this.IsFreeAttached)
                 {
-                    this.Target.Unlink();
+                    if (this.Target != null)
+                    {
+                        this.Target.Unlink();
+                    }
                     OSD.Success("Unlinked!");
                 }
                 if (this.IsFreeAttached)
@@ -570,6 +591,7 @@ namespace ActiveStruts.Modules
                 this.LinkType = LinkType.None;
                 this.IsConnectionOrigin = false;
                 this.UpdateGui();
+                this.Target.UpdateGui();
                 return;
             }
             if (this.IsTargetOnly)
