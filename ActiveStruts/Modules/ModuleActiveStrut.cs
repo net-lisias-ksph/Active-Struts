@@ -379,10 +379,10 @@ namespace ActiveStruts.Modules
                 ActiveStrutsAddon.Mode = AddonMode.None;
                 if (overridePositionOffset)
                 {
-                    this.FreeAttachPositionOffset = hitPosition - this.Origin.position; //hittedPart.transform.position;
+                    this.FreeAttachPositionOffset = hitPosition - hittedPart.transform.position; //hittedPart.transform.position;
                     if (HighLogic.LoadedSceneIsEditor)
                     {
-                        this.FreeAttachPositionOffset = this.Origin.rotation.Inverse()*this.FreeAttachPositionOffset;
+                        this.FreeAttachPositionOffset = hittedPart.transform.rotation.Inverse() * this.FreeAttachPositionOffset;
                         this.FreeAttachPositionOffsetVectorSetInEditor = true;
                     }
                     else
@@ -395,6 +395,7 @@ namespace ActiveStruts.Modules
                 {
                     this.FreeAttachTarget = target;
                 }
+                _freeAttachPart = hittedPart;
                 this.Mode = Mode.Linked;
                 this.IsLinked = true;
                 this.IsFreeAttached = true;
@@ -783,11 +784,11 @@ namespace ActiveStruts.Modules
             var offset = this.FreeAttachPositionOffset;
             if ((this.FreeAttachPositionOffsetVectorSetInEditor && HighLogic.LoadedSceneIsFlight) || HighLogic.LoadedSceneIsEditor)
             {
-                offset = this.Origin.rotation*offset;
+                offset = FreeAttachPart.transform.rotation*offset;
             }
             var targetPos =
                 Util.Util.PerformRaycast(this.Origin.position,
-                                         this.Origin.transform.position +
+                                         FreeAttachPart.transform.position +
                                          offset, this.Origin.right).Hit.point;
             return targetPos;
         }
