@@ -33,6 +33,8 @@ namespace ActiveStruts.Modules
     {
         private const ControlTypes EditorLockMask = ControlTypes.EDITOR_PAD_PICK_PLACE | ControlTypes.EDITOR_ICON_PICK;
         private readonly object _freeAttachStrutUpdateLock = new object();
+        [KSPField(isPersistant = true)] public string FreeAttachPositionOffsetVector;
+        [KSPField(isPersistant = true)] public bool FreeAttachPositionOffsetVectorSetInEditor = false;
         [KSPField(isPersistant = true)] public string FreeAttachTargetId = Guid.Empty.ToString();
         [KSPField(isPersistant = true)] public string Id = Guid.Empty.ToString();
         [KSPField(isPersistant = true)] public bool IsConnectionOrigin = false;
@@ -40,7 +42,6 @@ namespace ActiveStruts.Modules
         [KSPField(isPersistant = true)] public bool IsHalfWayExtended = false;
         [KSPField(isPersistant = true)] public bool IsLinked = false;
         [KSPField(isPersistant = true)] public bool IsTargetOnly = false;
-        [KSPField(isPersistant = true)] public bool FreeAttachPositionOffsetVectorSetInEditor = false;
         public ModuleActiveStrut OldTargeter;
         public Transform Origin;
         [KSPField(isPersistant = false, guiActive = true)] public string State = "n.a.";
@@ -59,8 +60,6 @@ namespace ActiveStruts.Modules
         private Mode _mode = Mode.Undefined;
         private int _strutRealignCounter;
         private int _ticksForDelayedStart;
-        [KSPField(isPersistant = true)] public string FreeAttachPositionOffsetVector;
-        [KSPField(isPersistant = true)] public string FreeAttachDirectionVector;
 
         private Part FreeAttachPart
         {
@@ -91,20 +90,6 @@ namespace ActiveStruts.Modules
                 return new Vector3(vArr[0], vArr[1], vArr[2]);
             }
             set { this.FreeAttachPositionOffsetVector = string.Format("{0} {1} {2}", value.x, value.y, value.z); }
-        }
-
-        public Vector3 FreeAttachPositionDirection
-        {
-            get
-            {
-                if (this.FreeAttachDirectionVector == null)
-                {
-                    return Vector3.zero;
-                }
-                var vArr = this.FreeAttachDirectionVector.Split(' ').Select(Convert.ToSingle).ToArray();
-                return new Vector3(vArr[0], vArr[1], vArr[2]);
-            }
-            set { this.FreeAttachDirectionVector = string.Format("{0} {1} {2}", value.x, value.y, value.z); }
         }
 
         public ModuleActiveStrutFreeAttachTarget FreeAttachTarget
@@ -397,12 +382,12 @@ namespace ActiveStruts.Modules
                     this.FreeAttachPositionOffset = hitPosition - this.Origin.position; //hittedPart.transform.position;
                     if (HighLogic.LoadedSceneIsEditor)
                     {
-                        FreeAttachPositionOffset = this.Origin.rotation.Inverse()*FreeAttachPositionOffset;
-                        FreeAttachPositionOffsetVectorSetInEditor = true;
+                        this.FreeAttachPositionOffset = this.Origin.rotation.Inverse()*this.FreeAttachPositionOffset;
+                        this.FreeAttachPositionOffsetVectorSetInEditor = true;
                     }
                     else
                     {
-                        FreeAttachPositionOffsetVectorSetInEditor = false;
+                        this.FreeAttachPositionOffsetVectorSetInEditor = false;
                     }
                 }
                 var target = hittedPart.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget;
@@ -442,20 +427,6 @@ namespace ActiveStruts.Modules
                 this.Unlink();
                 this.OnUpdate();
             }
-        }
-
-        private Vector3 _convertFreeAttachRayHitPointToStrutTarget()
-        {
-            var offset = this.FreeAttachPositionOffset;
-            if ((FreeAttachPositionOffsetVectorSetInEditor && HighLogic.LoadedSceneIsFlight) || HighLogic.LoadedSceneIsEditor)
-            {
-                offset = this.Origin.rotation*offset;
-            }
-            var targetPos =
-                Util.Util.PerformRaycast(this.Origin.position,
-                                         Origin.transform.position +
-                                         offset, this.Origin.right).Hit.point;
-            return targetPos;
         }
 
         private void Reconnect()
@@ -805,6 +776,20 @@ namespace ActiveStruts.Modules
                 }
                 this.Events["FreeAttachStraight"].active = this.Events["FreeAttachStraight"].guiActive = this.Events["FreeAttachStraight"].guiActiveEditor = this.Events["FreeAttach"].active;
             }
+        }
+
+        private Vector3 _convertFreeAttachRayHitPointToStrutTarget()
+        {
+            var offset = this.FreeAttachPositionOffset;
+            if ((this.FreeAttachPositionOffsetVectorSetInEditor && HighLogic.LoadedSceneIsFlight) || HighLogic.LoadedSceneIsEditor)
+            {
+                offset = this.Origin.rotation*offset;
+            }
+            var targetPos =
+                Util.Util.PerformRaycast(this.Origin.position,
+                                         this.Origin.transform.position +
+                                         offset, this.Origin.right).Hit.point;
+            return targetPos;
         }
 
         private void _delayedStart()
