@@ -612,6 +612,10 @@ namespace ActiveStruts.Modules
                     }
                     OSD.Success("Unlinked!");
                 }
+                else if (!this.IsConnectionOrigin)
+                {
+                    this.Targeter.Unlink();
+                }
                 if (this.IsFreeAttached)
                 {
                     this.IsFreeAttached = false;
@@ -620,10 +624,13 @@ namespace ActiveStruts.Modules
                 this.IsLinked = false;
                 this.DestroyJoint();
                 this.DestroyStrut();
-                this.LinkType = LinkType.None;
-                this.IsConnectionOrigin = false;
+                this.LinkType = LinkType.None;                
                 this.UpdateGui();
-                this.Target.UpdateGui();
+                if (this.IsConnectionOrigin)
+                {
+                    this.Target.UpdateGui();
+                }
+                this.IsConnectionOrigin = false;
                 return;
             }
             if (this.IsTargetOnly)
