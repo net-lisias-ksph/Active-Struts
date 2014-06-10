@@ -40,6 +40,7 @@ namespace ActiveStruts.Modules
         [KSPField(isPersistant = true)] public bool IsHalfWayExtended = false;
         [KSPField(isPersistant = true)] public bool IsLinked = false;
         [KSPField(isPersistant = true)] public bool IsTargetOnly = false;
+        [KSPField(isPersistant = true)] public bool FreeAttachPositionOffsetVectorSetInEditor = false;
         public ModuleActiveStrut OldTargeter;
         public Transform Origin;
         [KSPField(isPersistant = false, guiActive = true)] public string State = "n.a.";
@@ -58,6 +59,8 @@ namespace ActiveStruts.Modules
         private Mode _mode = Mode.Undefined;
         private int _strutRealignCounter;
         private int _ticksForDelayedStart;
+        [KSPField(isPersistant = true)] public string FreeAttachPositionOffsetVector;
+        [KSPField(isPersistant = true)] public string FreeAttachDirectionVector;
 
         private Part FreeAttachPart
         {
@@ -74,6 +77,34 @@ namespace ActiveStruts.Modules
                 }
                 return this._freeAttachPart;
             }
+        }
+
+        public Vector3 FreeAttachPositionOffset
+        {
+            get
+            {
+                if (this.FreeAttachPositionOffsetVector == null)
+                {
+                    return Vector3.zero;
+                }
+                var vArr = this.FreeAttachPositionOffsetVector.Split(' ').Select(Convert.ToSingle).ToArray();
+                return new Vector3(vArr[0], vArr[1], vArr[2]);
+            }
+            set { this.FreeAttachPositionOffsetVector = string.Format("{0} {1} {2}", value.x, value.y, value.z); }
+        }
+
+        public Vector3 FreeAttachPositionDirection
+        {
+            get
+            {
+                if (this.FreeAttachDirectionVector == null)
+                {
+                    return Vector3.zero;
+                }
+                var vArr = this.FreeAttachDirectionVector.Split(' ').Select(Convert.ToSingle).ToArray();
+                return new Vector3(vArr[0], vArr[1], vArr[2]);
+            }
+            set { this.FreeAttachDirectionVector = string.Format("{0} {1} {2}", value.x, value.y, value.z); }
         }
 
         public ModuleActiveStrutFreeAttachTarget FreeAttachTarget
@@ -356,11 +387,24 @@ namespace ActiveStruts.Modules
             }
         }
 
-        public void PlaceFreeAttach(Part hittedPart, Vector3 hitPosition)
+        public void PlaceFreeAttach(Part hittedPart, Vector3 hitPosition, bool overridePositionOffset = true)
         {
             lock (this._freeAttachStrutUpdateLock)
             {
                 ActiveStrutsAddon.Mode = AddonMode.None;
+                if (overridePositionOffset)
+                {
+                    this.FreeAttachPositionOffset = hitPosition - this.Origin.position; //hittedPart.transform.position;
+                    if (HighLogic.LoadedSceneIsEditor)
+                    {
+                        FreeAttachPositionOffset = this.Origin.rotation.Inverse()*FreeAttachPositionOffset;
+                        FreeAttachPositionOffsetVectorSetInEditor = true;
+                    }
+                    else
+                    {
+                        FreeAttachPositionOffsetVectorSetInEditor = false;
+                    }
+                }
                 var target = hittedPart.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget;
                 if (target != null)
                 {
@@ -376,7 +420,9 @@ namespace ActiveStruts.Modules
                 {
                     this.CreateJoint(this.part.rigidbody, target.PartRigidbody, LinkType.Weak, (hitPosition + this.Origin.position)/2);
                 }
-                this.CreateStrut(hitPosition);
+                var targetPoint = this._convertFreeAttachRayHitPointToStrutTarget();
+                Debug.Log("[AS] target point: " + targetPoint);
+                this.CreateStrut(targetPoint);
                 this.Target = null;
                 this.Targeter = null;
                 OSD.Success("FreeAttach Link established!");
@@ -398,6 +444,20 @@ namespace ActiveStruts.Modules
             }
         }
 
+        private Vector3 _convertFreeAttachRayHitPointToStrutTarget()
+        {
+            var offset = this.FreeAttachPositionOffset;
+            if ((FreeAttachPositionOffsetVectorSetInEditor && HighLogic.LoadedSceneIsFlight) || HighLogic.LoadedSceneIsEditor)
+            {
+                offset = this.Origin.rotation*offset;
+            }
+            var targetPos =
+                Util.Util.PerformRaycast(this.Origin.position,
+                                         Origin.transform.position +
+                                         offset, this.Origin.right).Hit.point;
+            return targetPos;
+        }
+
         private void Reconnect()
         {
             if (this.IsFreeAttached)
@@ -407,7 +467,7 @@ namespace ActiveStruts.Modules
                     var rayRes = Util.Util.PerformRaycast(this.Origin.position, this.FreeAttachTarget.PartOrigin.position, this.Origin.right);
                     if (rayRes.HitCurrentVessel && rayRes.HittedPart != null && rayRes.DistanceFromOrigin <= Config.Instance.MaxDistance)
                     {
-                        this.PlaceFreeAttach(rayRes.HittedPart, rayRes.Hit.point);
+                        this.PlaceFreeAttach(rayRes.HittedPart, rayRes.Hit.point, false);
                         this.UpdateGui();
                         return;
                     }
@@ -783,7 +843,7 @@ namespace ActiveStruts.Modules
             {
                 lock (this._freeAttachStrutUpdateLock)
                 {
-                    var targetPos = Util.Util.PerformRaycast(this.Origin.position, this.FreeAttachTarget.PartOrigin.position, this.Origin.right).Hit.point;
+                    var targetPos = this._convertFreeAttachRayHitPointToStrutTarget();
                     this.DestroyStrut();
                     this.CreateStrut(targetPos);
                 }

@@ -30,6 +30,11 @@ namespace ActiveStruts.Util
             return GetAllActiveStruts().Any(m => !m.IsTargetOnly && m.Mode == Mode.Linked && m.Target != null && m.Target == target);
         }
 
+        public static Vector3 FlipYAndZ(this Vector3 origin)
+        {
+            return new Vector3(origin.x, origin.z, origin.y);
+        }
+
         public static FreeAttachTargetCheck CheckFreeAttachPoint(this ModuleActiveStrut origin)
         {
             var raycast = PerformRaycast(origin.Origin.position, origin.FreeAttachTarget.PartOrigin.position, origin.Origin.right);
