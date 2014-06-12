@@ -60,7 +60,8 @@ namespace ActiveStruts.Modules
         private Mode _mode = Mode.Undefined;
         private int _strutRealignCounter;
         private int _ticksForDelayedStart;
-        //private AttachNode _jointAttachNode;
+        private AttachNode _jointAttachNode;
+        private PartJoint _partJoint;
 
         private Part FreeAttachPart
         {
@@ -164,19 +165,20 @@ namespace ActiveStruts.Modules
 
         public void CreateJoint(Rigidbody originBody, Rigidbody targetBody, LinkType type, Vector3 anchorPosition)
         {
-            this._joint = originBody.gameObject.AddComponent<ConfigurableJoint>();
-            //this._joint = part.attachJoint.Joint.rigidbody.gameObject.AddComponent<ConfigurableJoint>();
-            this._joint.connectedBody = targetBody;
-            this._joint.breakForce = this._joint.breakTorque = type.GetJointStrength();
-            this._joint.xMotion = ConfigurableJointMotion.Locked;
-            this._joint.yMotion = ConfigurableJointMotion.Locked;
-            this._joint.zMotion = ConfigurableJointMotion.Locked;
-            this._joint.angularXMotion = ConfigurableJointMotion.Locked;
-            this._joint.angularYMotion = ConfigurableJointMotion.Locked;
-            this._joint.angularZMotion = ConfigurableJointMotion.Locked;
-            this._joint.projectionAngle = 0f;
-            this._joint.projectionDistance = 0f;
-            this._joint.anchor = anchorPosition;
+            _manageAttachNode();
+            //this._joint = originBody.gameObject.AddComponent<ConfigurableJoint>();
+            ////this._joint = part.attachJoint.Joint.rigidbody.gameObject.AddComponent<ConfigurableJoint>();
+            //this._joint.connectedBody = targetBody;
+            //this._joint.breakForce = this._joint.breakTorque = type.GetJointStrength();
+            //this._joint.xMotion = ConfigurableJointMotion.Locked;
+            //this._joint.yMotion = ConfigurableJointMotion.Locked;
+            //this._joint.zMotion = ConfigurableJointMotion.Locked;
+            //this._joint.angularXMotion = ConfigurableJointMotion.Locked;
+            //this._joint.angularYMotion = ConfigurableJointMotion.Locked;
+            //this._joint.angularZMotion = ConfigurableJointMotion.Locked;
+            //this._joint.projectionAngle = 0f;
+            //this._joint.projectionDistance = 0f;
+            //this._joint.anchor = anchorPosition;
             this.LinkType = type;
             if (!this.IsFreeAttached)
             {
@@ -200,6 +202,13 @@ namespace ActiveStruts.Modules
         public void DestroyJoint()
         {
             DestroyImmediate(this._joint);
+            if (_partJoint != null)
+            {
+                this._partJoint.DestroyJoint();
+            }
+            DestroyImmediate(this._partJoint);
+            this._partJoint = null;
+            this._jointAttachNode = null;
             this._joint = null;
             this.LinkType = LinkType.None;
         }
@@ -278,6 +287,7 @@ namespace ActiveStruts.Modules
         {
             this._jointBroken = true;
             this._jointBrokeForce = breakForce;
+            this.DestroyJoint();
         }
 
         public override void OnStart(StartState state)
@@ -324,7 +334,12 @@ namespace ActiveStruts.Modules
                 {
                     this._strutRealignCounter = Config.Instance.StrutRealignInterval;
                     this._realignStrut();
+                    this.LinkType = this.IsFreeAttached ? LinkType.Weak : this.IsTargetOnly ? LinkType.Normal : LinkType.Maximal;
                 }
+            }
+            else
+            {
+                this.LinkType = LinkType.None;
             }
             if (this.Mode == Mode.Unlinked || this.Mode == Mode.Target || this.Mode == Mode.Targeting)
             {
@@ -374,37 +389,39 @@ namespace ActiveStruts.Modules
             }
         }
 
-        //private void _manageAttachNode()
-        //{
-        //    if (!this.IsConnectionOrigin || this.Mode != Mode.Linked || this.IsTargetOnly || this._jointAttachNode != null)
-        //    {
-        //        return;
-        //    }
-        //    try
-        //    {
-        //        this._jointAttachNode = new AttachNode();
-        //        this._jointAttachNode.id = Guid.NewGuid().ToString();
-        //        this._jointAttachNode.attachedPart = this.IsFreeAttached ? this.FreeAttachPart : this.Target.part;
-        //        var force = (this.IsFreeAttached ? LinkType.Weak : this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal).GetJointStrength() - 1;
-        //        this._jointAttachNode.breakingForce = this._jointAttachNode.breakingTorque = force;
-        //        this._jointAttachNode.position = this.IsFreeAttached
-        //                                             ? this.FreeAttachPart.partTransform.InverseTransformPoint(this._convertFreeAttachRayHitPointToStrutTarget())
-        //                                             : this.Target.Origin.InverseTransformPoint(this.Target.Origin.position);
-        //        var normDir = (this.Origin.position - (this.IsFreeAttached ? this._convertFreeAttachRayHitPointToStrutTarget() : this.Target.Origin.position)).normalized;
-        //        this._jointAttachNode.orientation = this.IsFreeAttached ? this.FreeAttachPart.partTransform.InverseTransformPoint(normDir) : this.Target.Origin.InverseTransformPoint(normDir);
-        //        this._jointAttachNode.size = 1;
-        //        this._jointAttachNode.ResourceXFeed = false;
-        //        this.part.attachNodes.Add(this._jointAttachNode);
-        //        this._jointAttachNode.owner = this.part;
-        //        PartJoint.Create(this.part, this.IsFreeAttached ? this.FreeAttachPart : this.Target.part, this._jointAttachNode, (AttachNode) null, AttachModes.SRF_ATTACH);
-        //    }
-        //    catch (Exception)
-        //    {
-        //        //this._jointAttachNode = null;
-        //        //creating attachjoint failed
-        //        Debug.Log("[AS] failed to create attachjoint");
-        //    }
-        //}
+        private void _manageAttachNode()
+        {
+            if (!this.IsConnectionOrigin || this.Mode != Mode.Linked || this.IsTargetOnly || this._jointAttachNode != null || !HighLogic.LoadedSceneIsFlight)
+            {
+                return;
+            }
+            try
+            {
+                //Debug.Log("[AS] trying to create partJoint");
+                var targetPart = this.IsFreeAttached ? this.FreeAttachPart : this.Target.part;
+                if (targetPart == null)
+                {
+                    return;
+                }
+                var normDir = (this.Origin.position - (this.IsFreeAttached ? this._convertFreeAttachRayHitPointToStrutTarget() : this.Target.Origin.position)).normalized;
+                var force = (this.IsFreeAttached ? LinkType.Weak : this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal).GetJointStrength(); // + 1;
+                this._jointAttachNode = new AttachNode {id = Guid.NewGuid().ToString(), attachedPart = targetPart};
+                this._jointAttachNode.breakingForce = this._jointAttachNode.breakingTorque = force;
+                this._jointAttachNode.position = targetPart.partTransform.InverseTransformPoint(this.IsFreeAttached ? this._convertFreeAttachRayHitPointToStrutTarget() : targetPart.partTransform.position);
+                this._jointAttachNode.orientation = targetPart.partTransform.InverseTransformDirection(normDir);
+                this._jointAttachNode.size = 1;
+                this._jointAttachNode.ResourceXFeed = false;
+                this.part.attachNodes.Add(this._jointAttachNode);
+                this._jointAttachNode.owner = this.part;
+                this._partJoint = PartJoint.Create(this.part, targetPart, this._jointAttachNode, (AttachNode) null, AttachModes.SRF_ATTACH);
+                //Debug.Log("[AS] part joint created");
+            }
+            catch (Exception e)
+            {
+                this._jointAttachNode = null;
+                Debug.Log("[AS] failed to create attachjoint: " + e.Message + " " + e.StackTrace);
+            }
+        }
 
         public void PlaceFreeAttach(Part hittedPart, Vector3 hitPosition, bool overridePositionOffset = true)
         {
@@ -441,7 +458,7 @@ namespace ActiveStruts.Modules
                     this.CreateJoint(this.part.rigidbody, target.PartRigidbody, LinkType.Weak, (hitPosition + this.Origin.position)/2);
                 }
                 var targetPoint = this._convertFreeAttachRayHitPointToStrutTarget();
-                Debug.Log("[AS] target point: " + targetPoint);
+                //Debug.Log("[AS] target point: " + targetPoint);
                 this.CreateStrut(targetPoint);
                 this.Target = null;
                 this.Targeter = null;
@@ -562,9 +579,9 @@ namespace ActiveStruts.Modules
             this.Target = target;
             this.Mode = Mode.Linked;
             this.IsLinked = true;
-            this.CreateJoint(this.part.rigidbody, target.part.rigidbody, target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal, this.Target.transform.position);
-            this.CreateStrut(target.Origin.position, target.IsTargetOnly ? 1 : 0.5f);
             this.IsConnectionOrigin = true;
+            this.CreateJoint(this.part.rigidbody, target.part.rigidbody, target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal, this.Target.transform.position);
+            this.CreateStrut(target.Origin.position, target.IsTargetOnly ? 1 : 0.5f);            
             Util.Util.ResetAllFromTargeting();
             OSD.Success("Link established!");
             ActiveStrutsAddon.Mode = AddonMode.None;
@@ -659,12 +676,12 @@ namespace ActiveStruts.Modules
                 this.DestroyJoint();
                 this.DestroyStrut();
                 this.LinkType = LinkType.None;
-                this.UpdateGui();
                 if (this.IsConnectionOrigin)
                 {
                     this.Target.UpdateGui();
                 }
                 this.IsConnectionOrigin = false;
+                this.UpdateGui();
                 return;
             }
             if (this.IsTargetOnly)

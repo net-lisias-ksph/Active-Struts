@@ -93,7 +93,7 @@ namespace ActiveStruts.Addons
             }
             this._targetHighlightRemoveCounter = TargetHighlightRemoveInterval;
             this._targetHighlightedParts = new List<Part>();
-            _connector = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            _connector = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             _connector.name = "ASConn";
             DestroyImmediate(_connector.collider);
             _connector.transform.localScale = new Vector3(Config.Instance.ConnectorDimension, Config.Instance.ConnectorDimension, Config.Instance.ConnectorDimension);
