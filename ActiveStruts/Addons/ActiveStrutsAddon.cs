@@ -18,6 +18,7 @@ namespace ActiveStruts.Addons
         public static ModuleActiveStrut CurrentTargeter { get; set; }
         public static AddonMode Mode { get; set; }
         public static Vector3 Origin { get; set; }
+        
 
         //must not be static
         private void ActionMenuClosed(Part data)
@@ -103,7 +104,7 @@ namespace ActiveStruts.Addons
             _connector.SetActive(false);
             GameEvents.onPartActionUICreate.Add(this.ActionMenuCreated);
             GameEvents.onPartActionUIDismiss.Add(this.ActionMenuClosed);
-            Mode = AddonMode.None;
+            Mode = AddonMode.None;            
         }
 
         private static bool IsValidPosition(RaycastResult raycast)

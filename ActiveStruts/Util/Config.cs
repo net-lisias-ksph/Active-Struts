@@ -28,10 +28,28 @@ namespace ActiveStruts.Util
                                                                                {"FreeAttachDistanceTolerance", new SettingsEntry(0.1f)},
                                                                                {"FreeAttachStrutExtension", new SettingsEntry(0.05f)},
                                                                                {"StartDelay", new SettingsEntry(60)},
-                                                                               {"StrutRealignInterval", new SettingsEntry(5)}
+                                                                               {"StrutRealignInterval", new SettingsEntry(5)},
+                                                                               {"SoundAttachFile",new SettingsEntry("ActiveStruts/Sounds/AS_Attach")},
+                                                                               {"SoundDetachFile",new SettingsEntry("ActiveStruts/Sounds/AS_Detach")},
+                                                                               {"SoundBreakFile",new SettingsEntry("ActiveStruts/Sounds/AS_Break")}
                                                                            };
 
         private static Config _instance;
+
+        public string SoundAttachFileUrl
+        {
+            get { return _getValue<string>("SoundAttachFile"); }
+        }
+
+        public string SoundDetachFileUrl
+        {
+            get { return _getValue<string>("SoundDetachFile"); }
+        }
+
+        public string SoundBreakFileUrl
+        {
+            get { return _getValue<string>("SoundBreakFile"); }
+        }
 
         public float ColorTransparency
         {

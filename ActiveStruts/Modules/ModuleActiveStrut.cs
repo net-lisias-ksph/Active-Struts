@@ -62,6 +62,8 @@ namespace ActiveStruts.Modules
         private int _ticksForDelayedStart;
         private AttachNode _jointAttachNode;
         private PartJoint _partJoint;
+        public FXGroup _soundAttach, _soundDetach, _soundBreak;
+        private bool _soundFlag;
 
         private Part FreeAttachPart
         {
@@ -91,7 +93,7 @@ namespace ActiveStruts.Modules
                 var vArr = this.FreeAttachPositionOffsetVector.Split(' ').Select(Convert.ToSingle).ToArray();
                 return new Vector3(vArr[0], vArr[1], vArr[2]);
             }
-            set { this.FreeAttachPositionOffsetVector = string.Format("{0} {1} {2}", value.x, value.y, value.z); }
+            set { this.FreeAttachPositionOffsetVector = String.Format("{0} {1} {2}", value.x, value.y, value.z); }
         }
 
         public ModuleActiveStrutFreeAttachTarget FreeAttachTarget
@@ -165,7 +167,7 @@ namespace ActiveStruts.Modules
 
         public void CreateJoint(Rigidbody originBody, Rigidbody targetBody, LinkType type, Vector3 anchorPosition)
         {
-            _manageAttachNode();
+            this._manageAttachNode();
             //this._joint = originBody.gameObject.AddComponent<ConfigurableJoint>();
             ////this._joint = part.attachJoint.Joint.rigidbody.gameObject.AddComponent<ConfigurableJoint>();
             //this._joint.connectedBody = targetBody;
@@ -184,6 +186,7 @@ namespace ActiveStruts.Modules
             {
                 this.Target.LinkType = type;
             }
+            PlayAttachSound();
         }
 
         public void CreateStrut(Vector3 target, float distancePercent = 1)
@@ -202,7 +205,7 @@ namespace ActiveStruts.Modules
         public void DestroyJoint()
         {
             DestroyImmediate(this._joint);
-            if (_partJoint != null)
+            if (this._partJoint != null)
             {
                 this._partJoint.DestroyJoint();
             }
@@ -288,6 +291,7 @@ namespace ActiveStruts.Modules
             this._jointBroken = true;
             this._jointBrokeForce = breakForce;
             this.DestroyJoint();
+            PlayBreakSound();
         }
 
         public override void OnStart(StartState state)
@@ -306,6 +310,58 @@ namespace ActiveStruts.Modules
             this._delayedStartFlag = true;
             this._ticksForDelayedStart = HighLogic.LoadedSceneIsEditor ? 0 : Config.Instance.StartDelay;
             this._strutRealignCounter = Config.Instance.StrutRealignInterval*(HighLogic.LoadedSceneIsEditor ? 3 : 0);
+            if (this._soundAttach == null || this._soundBreak == null || this._soundDetach == null ||
+                !GameDatabase.Instance.ExistsAudioClip(Config.Instance.SoundAttachFileUrl) ||
+                !GameDatabase.Instance.ExistsAudioClip(Config.Instance.SoundDetachFileUrl) ||
+                !GameDatabase.Instance.ExistsAudioClip(Config.Instance.SoundBreakFileUrl))
+            {
+                Debug.Log("[AS] sounds cannot be loaded." + (this._soundAttach == null ? "FXGroup not instantiated" : "sound file not found"));
+                this._soundFlag = false;
+            }
+            else
+            {
+                SetupFXGroup(this._soundAttach, this.gameObject, Config.Instance.SoundAttachFileUrl);
+                SetupFXGroup(this._soundDetach, this.gameObject, Config.Instance.SoundDetachFileUrl);
+                SetupFXGroup(this._soundBreak, this.gameObject, Config.Instance.SoundBreakFileUrl);
+                this._soundFlag = true;
+            }
+        }
+
+        // ReSharper disable once InconsistentNaming
+        private static void SetupFXGroup(FXGroup group, GameObject gameObject, string audioFileUrl)
+        {
+            group.audio = gameObject.AddComponent<AudioSource>();
+            group.audio.clip = GameDatabase.Instance.GetAudioClip(audioFileUrl);
+            group.audio.dopplerLevel = 0f;
+            group.audio.rolloffMode = AudioRolloffMode.Linear;
+            group.audio.maxDistance = 30f;
+            group.audio.loop = false;
+            group.audio.playOnAwake = false;
+            group.audio.volume = GameSettings.SHIP_VOLUME;
+        }
+
+        public void PlayAttachSound()
+        {
+            PlayAudio(_soundAttach);
+        }
+
+        public void PlayDetachSound()
+        {
+            PlayAudio(_soundDetach);
+        }
+
+        public void PlayBreakSound()
+        {
+            PlayAudio(_soundBreak);
+        }
+
+        private void PlayAudio(FXGroup group)
+        {
+            if (!_soundFlag || group == null || group.audio == null)
+            {
+                return;
+            }
+            group.audio.Play();
         }
 
         public override void OnUpdate()
@@ -446,7 +502,7 @@ namespace ActiveStruts.Modules
                 {
                     this.FreeAttachTarget = target;
                 }
-                _freeAttachPart = hittedPart;
+                this._freeAttachPart = hittedPart;
                 this.Mode = Mode.Linked;
                 this.IsLinked = true;
                 this.IsFreeAttached = true;
@@ -581,7 +637,7 @@ namespace ActiveStruts.Modules
             this.IsLinked = true;
             this.IsConnectionOrigin = true;
             this.CreateJoint(this.part.rigidbody, target.part.rigidbody, target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal, this.Target.transform.position);
-            this.CreateStrut(target.Origin.position, target.IsTargetOnly ? 1 : 0.5f);            
+            this.CreateStrut(target.Origin.position, target.IsTargetOnly ? 1 : 0.5f);
             Util.Util.ResetAllFromTargeting();
             OSD.Success("Link established!");
             ActiveStrutsAddon.Mode = AddonMode.None;
@@ -682,6 +738,7 @@ namespace ActiveStruts.Modules
                 }
                 this.IsConnectionOrigin = false;
                 this.UpdateGui();
+                PlayDetachSound();
                 return;
             }
             if (this.IsTargetOnly)
@@ -705,6 +762,7 @@ namespace ActiveStruts.Modules
             this.DestroyJoint();
             this.LinkType = LinkType.None;
             this.UpdateGui();
+            PlayDetachSound();
         }
 
         public void UpdateGui()
@@ -842,11 +900,11 @@ namespace ActiveStruts.Modules
             var offset = this.FreeAttachPositionOffset;
             if ((this.FreeAttachPositionOffsetVectorSetInEditor && HighLogic.LoadedSceneIsFlight) || HighLogic.LoadedSceneIsEditor)
             {
-                offset = FreeAttachPart.transform.rotation*offset;
+                offset = this.FreeAttachPart.transform.rotation*offset;
             }
             var targetPos =
                 Util.Util.PerformRaycast(this.Origin.position,
-                                         FreeAttachPart.transform.position +
+                                         this.FreeAttachPart.transform.position +
                                          offset, this.Origin.right).Hit.point;
             return targetPos;
         }
