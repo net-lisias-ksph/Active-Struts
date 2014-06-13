@@ -11,6 +11,7 @@ namespace ActiveStruts.Util
         private const string _linkHelpText = "Click left on a possible target to establish a link. Press 'x' to abort. You can also right click -> 'Set as Target' on a valid target and right click -> 'Abort' on the targeter.";
         private const string _moduleName = "ModuleActiveStrut";
         private const string _editorInputLockId = "[AS] temp editor lock";
+        public const float UnfocusedRange = 3f;
 
         // ReSharper disable once InconsistentNaming
         private const string _moduleActiveStrutFreeAttachTarget = "ModuleActiveStrutFreeAttachTarget";
@@ -24,14 +25,14 @@ namespace ActiveStruts.Util
                                                                                {"NormalJointStrength", new SettingsEntry(500)},
                                                                                {"MaximalJointStrength", new SettingsEntry(2000)},
                                                                                {"ConnectorDimension", new SettingsEntry(0.5f)},
-                                                                               {"ColorTransparency", new SettingsEntry(0.5f)},
+                                                                               {"ColorTransparency", new SettingsEntry(0.7f)},
                                                                                {"FreeAttachDistanceTolerance", new SettingsEntry(0.1f)},
                                                                                {"FreeAttachStrutExtension", new SettingsEntry(0.05f)},
                                                                                {"StartDelay", new SettingsEntry(60)},
                                                                                {"StrutRealignInterval", new SettingsEntry(5)},
-                                                                               {"SoundAttachFile",new SettingsEntry("ActiveStruts/Sounds/AS_Attach")},
-                                                                               {"SoundDetachFile",new SettingsEntry("ActiveStruts/Sounds/AS_Detach")},
-                                                                               {"SoundBreakFile",new SettingsEntry("ActiveStruts/Sounds/AS_Break")}
+                                                                               {"SoundAttachFile", new SettingsEntry("ActiveStruts/Sounds/AS_Attach")},
+                                                                               {"SoundDetachFile", new SettingsEntry("ActiveStruts/Sounds/AS_Detach")},
+                                                                               {"SoundBreakFile", new SettingsEntry("ActiveStruts/Sounds/AS_Break")}
                                                                            };
 
         private static Config _instance;
