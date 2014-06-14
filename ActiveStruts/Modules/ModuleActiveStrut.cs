@@ -436,12 +436,14 @@ namespace ActiveStruts.Modules
             }
             if (this.Mode == Mode.Linked)
             {
+                
                 if (HighLogic.LoadedSceneIsEditor)
                 {
                     return;
                 }
                 if (this.IsOwnVesselConnected)
                 {
+                    //Debug.Log("[AS] unlink if not currvessel");
                     if (this.IsFreeAttached)
                     {
                         if (this.FreeAttachPart != null)
@@ -452,9 +454,16 @@ namespace ActiveStruts.Modules
                             }
                         }
                     }
+                    else if (this.IsTargetOnly)
+                    {
+                        foreach (var connectedTargeter in this.GetAllConnectedTargeters().Where(connectedTargeter => connectedTargeter.vessel != null && connectedTargeter.vessel != this.vessel))
+                        {
+                            connectedTargeter.Unlink();
+                        }
+                    }
                     else if (this.Target != null)
                     {
-                        if (!this.Target.vessel == this.vessel)
+                        if (this.Target.vessel != this.vessel)
                         {
                             this.IsOwnVesselConnected = false;
                         }
@@ -681,7 +690,7 @@ namespace ActiveStruts.Modules
             }
             if (this.IsConnectionOrigin)
             {
-                Debug.Log("[AS] reconnecting targeter");
+                //Debug.Log("[AS] reconnecting targeter");
                 if (this.Target != null && this.IsPossibleTarget(this.Target))
                 {
                     if (!this.Target.IsTargetOnly)
@@ -696,7 +705,7 @@ namespace ActiveStruts.Modules
                     this.Mode = Mode.Linked;
                     this.Target.Mode = Mode.Linked;
                     this.IsLinked = true;
-                    Debug.Log("[AS] reconnected targeter");
+                    //Debug.Log("[AS] reconnected targeter");
                 }
             }
             else

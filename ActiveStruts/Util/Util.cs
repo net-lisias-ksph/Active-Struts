@@ -31,12 +31,17 @@ namespace ActiveStruts.Util
 
         public static void UnlinkAllConnectedTargeters(this ModuleActiveStrut target)
         {
-            var allTargeters = GetAllActiveStruts().Where(m => !m.IsTargetOnly && m.Mode == Mode.Linked && m.Target != null && m.Target == target).ToList();
+            var allTargeters = target.GetAllConnectedTargeters();
             foreach (var moduleActiveStrut in allTargeters)
             {
                 moduleActiveStrut.Unlink();
             }
         }
+
+        public static List<ModuleActiveStrut> GetAllConnectedTargeters(this ModuleActiveStrut target)
+        {
+            return GetAllActiveStruts().Where(m => !m.IsTargetOnly && m.Mode == Mode.Linked && m.Target != null && m.Target == target).ToList();
+        } 
 
         public static FreeAttachTargetCheck CheckFreeAttachPoint(this ModuleActiveStrut origin)
         {
