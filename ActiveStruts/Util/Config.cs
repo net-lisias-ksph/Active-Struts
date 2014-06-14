@@ -7,8 +7,8 @@ namespace ActiveStruts.Util
 {
     public class Config
     {
-        private const string _freeAttachHelpText = "Click left on a valid position to establish a link. Press 'x' to abort.";
-        private const string _linkHelpText = "Click left on a possible target to establish a link. Press 'x' to abort. You can also right click -> 'Set as Target' on a valid target and right click -> 'Abort' on the targeter.";
+        private const string _freeAttachHelpText = "Left-Click on a valid position to establish a link. Press 'x' to abort.";
+        private const string _linkHelpText = "Left-Click on a possible target to establish a link. Press 'x' to abort or use the 'Abort Link' button.";
         private const string _moduleName = "ModuleActiveStrut";
         private const string _editorInputLockId = "[AS] temp editor lock";
         public const float UnfocusedRange = 3f;

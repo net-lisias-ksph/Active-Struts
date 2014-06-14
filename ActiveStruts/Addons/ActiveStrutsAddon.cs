@@ -104,11 +104,56 @@ namespace ActiveStruts.Addons
             GameEvents.onPartActionUICreate.Add(this.ActionMenuCreated);
             GameEvents.onPartActionUIDismiss.Add(this.ActionMenuClosed);
             Mode = AddonMode.None;
+            if (HighLogic.LoadedSceneIsEditor)
+            {
+                GameEvents.onPartRemove.Add(this.HandleEditorPartDetach);
+            }
+            else 
+                if (HighLogic.LoadedSceneIsFlight)
+            {
+                //GameEvents.onVesselWasModified.Add(_handleFlightVesselChange);
+                //GameEvents.onPartUndock.Add(this.HandleFlightPartUndock);
+            }
+        }
+
+        public void HandleFlightPartUndock(Part data)
+        {
+            Debug.Log("[AS] part undocked");
+        }
+
+        private void HandleEditorPartDetach(GameEvents.HostTargetAction<Part, Part> hostTargetAction)
+        {
+            var partList = new List<Part>();
+            foreach (var child in hostTargetAction.target.children)
+            {
+                Util.Util.RecursePartList(partList, child);
+            }
+            var movedModules = (from p in partList
+                                where p.Modules.Contains(Config.Instance.ModuleName)
+                                select p.Modules[Config.Instance.ModuleName] as ModuleActiveStrut).ToList();
+            var movedTargets = (from p in partList
+                                where p.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget)
+                                select p.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget).ToList();
+            var vesselModules = (from p in Util.Util.ListEditorParts(false)
+                                 where p.Modules.Contains(Config.Instance.ModuleName)
+                                 select p.Modules[Config.Instance.ModuleName] as ModuleActiveStrut).ToList();
+            foreach (var module in movedModules)
+            {
+                module.Unlink();
+            }
+            foreach (var module in vesselModules.Where(module =>
+                                                       (module.Target != null && movedModules.Any(m => m.ID == module.Target.ID) ||
+                                                        (module.Targeter != null && movedModules.Any(m => m.ID == module.Targeter.ID))) ||
+                                                       (module.IsFreeAttached && movedTargets.Any(t => t.ID == module.FreeAttachTarget.ID))))
+            {
+                module.Unlink();
+            }
+            Debug.Log("[AS] handled part remove in editor");
         }
 
         private static bool IsValidPosition(RaycastResult raycast)
         {
-            var valid = raycast.HitResult && raycast.HittedPart != null && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= Config.Instance.MaxDistance && raycast.RayAngle <= Config.Instance.MaxAngle;
+            var valid = raycast.HitResult && raycast.HittedPart != null && raycast.DistanceFromOrigin <= Config.Instance.MaxDistance && raycast.RayAngle <= Config.Instance.MaxAngle;
             switch (Mode)
             {
                 case AddonMode.Link:
@@ -148,6 +193,8 @@ namespace ActiveStruts.Addons
         {
             GameEvents.onPartActionUICreate.Remove(this.ActionMenuCreated);
             GameEvents.onPartActionUIDismiss.Remove(this.ActionMenuClosed);
+            GameEvents.onPartRemove.Remove(this.HandleEditorPartDetach);
+            GameEvents.onPartUndock.Remove(this.HandleFlightPartUndock);
         }
 
         // ReSharper disable once InconsistentNaming
@@ -229,7 +276,7 @@ namespace ActiveStruts.Addons
                 var mp = Util.Util.GetMouseWorldPosition();
                 _pointToMousePosition(mp);
                 var raycast = Util.Util.PerformRaycast(CurrentTargeter.Origin.position, mp, CurrentTargeter.Origin.right);
-                if (!raycast.HitResult || !raycast.HitCurrentVessel)
+                if (!raycast.HitResult)
                 {
                     var handled = false;
                     if (Mode == AddonMode.Link && Input.GetKeyDown(KeyCode.Mouse0))

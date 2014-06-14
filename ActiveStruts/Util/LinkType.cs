@@ -4,7 +4,7 @@
     {
         Weak,
         Normal,
-        Maximal,
+        Maximum,
         None
     }
 }

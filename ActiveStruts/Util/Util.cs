@@ -11,7 +11,6 @@ namespace ActiveStruts.Util
     {
         public float DistanceFromOrigin { get; set; }
         public RaycastHit Hit { get; set; }
-        public bool HitCurrentVessel { get; set; }
         public bool HitResult { get; set; }
         public Part HittedPart { get; set; }
         public Ray Ray { get; set; }
@@ -40,7 +39,7 @@ namespace ActiveStruts.Util
                 return new FreeAttachTargetCheck
                        {
                            TargetPart = raycast.HittedPart,
-                           HitResult = distOk && raycast.HitCurrentVessel
+                           HitResult = distOk
                        };
             }
             return new FreeAttachTargetCheck
@@ -78,7 +77,8 @@ namespace ActiveStruts.Util
         {
             if (HighLogic.LoadedSceneIsFlight)
             {
-                return FlightGlobals.ActiveVessel.Parts.Where(p => p.Modules.Contains(Config.Instance.ModuleName)).Select(p => p.Modules[Config.Instance.ModuleName] as ModuleActiveStrut).ToList();
+                var allParts = FlightGlobals.Vessels.SelectMany(v => v.parts).ToList();
+                return allParts.Where(p => p.Modules.Contains(Config.Instance.ModuleName)).Select(p => p.Modules[Config.Instance.ModuleName] as ModuleActiveStrut).ToList();
             }
             if (!HighLogic.LoadedSceneIsEditor)
             {
@@ -92,8 +92,9 @@ namespace ActiveStruts.Util
         {
             if (HighLogic.LoadedSceneIsFlight)
             {
+                var allParts = FlightGlobals.Vessels.SelectMany(v => v.parts).ToList();
                 return
-                    FlightGlobals.ActiveVessel.Parts.Where(p => p.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget))
+                    allParts.Where(p => p.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget))
                                  .Select(p => p.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget)
                                  .ToList();
             }
@@ -122,7 +123,7 @@ namespace ActiveStruts.Util
                 {
                     return Config.Instance.NormalJointStrength;
                 }
-                case LinkType.Maximal:
+                case LinkType.Maximum:
                 {
                     return Config.Instance.MaximalJointStrength;
                 }
@@ -169,7 +170,7 @@ namespace ActiveStruts.Util
         public static bool IsPossibleFreeAttachTarget(this ModuleActiveStrut origin, Vector3 mousePosition)
         {
             var raycast = PerformRaycast(origin.Origin.position, mousePosition, origin.Origin.right);
-            return raycast.HitResult && raycast.HitCurrentVessel && raycast.DistanceFromOrigin <= Config.Instance.MaxDistance && raycast.RayAngle <= Config.Instance.MaxAngle;
+            return raycast.HitResult && raycast.DistanceFromOrigin <= Config.Instance.MaxDistance && raycast.RayAngle <= Config.Instance.MaxAngle;
         }
 
         public static bool IsPossibleTarget(this ModuleActiveStrut origin, ModuleActiveStrut possibleTarget)
@@ -177,7 +178,7 @@ namespace ActiveStruts.Util
             if (possibleTarget.IsConnectionFree || (possibleTarget.Targeter != null && possibleTarget.Targeter.ID == origin.ID))
             {
                 var raycast = PerformRaycast(origin.Origin.position, possibleTarget.Origin.position, origin.Origin.right);
-                return raycast.HitResult && raycast.HittedPart == possibleTarget.part && raycast.DistanceFromOrigin <= Config.Instance.MaxDistance && raycast.RayAngle <= Config.Instance.MaxAngle && raycast.HitCurrentVessel;
+                return raycast.HitResult && raycast.HittedPart == possibleTarget.part && raycast.DistanceFromOrigin <= Config.Instance.MaxDistance && raycast.RayAngle <= Config.Instance.MaxAngle;
             }
             return false;
         }
@@ -241,12 +242,11 @@ namespace ActiveStruts.Util
                        HittedPart = hittedPart,
                        HitResult = hit,
                        Ray = ray,
-                       RayAngle = angle,
-                       HitCurrentVessel = hittedPart != null && (HighLogic.LoadedSceneIsEditor || hittedPart.vessel == FlightGlobals.ActiveVessel)
+                       RayAngle = angle
                    };
         }
 
-        private static void RecursePartList(ICollection<Part> list, Part part)
+        public static void RecursePartList(ICollection<Part> list, Part part)
         {
             list.Add(part);
             foreach (var p in part.children)

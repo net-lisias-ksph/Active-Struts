@@ -63,8 +63,9 @@ namespace ActiveStruts.Modules
         private int _ticksForDelayedStart;
         private AttachNode _jointAttachNode;
         private PartJoint _partJoint;
-        public FXGroup _soundAttach, _soundDetach, _soundBreak;
+        public FXGroup SoundAttach, SoundDetach, SoundBreak;
         private bool _soundFlag;
+        [KSPField(isPersistant = true)] public bool IsOwnVesselConnected = false;
 
         private Part FreeAttachPart
         {
@@ -168,7 +169,6 @@ namespace ActiveStruts.Modules
 
         public void CreateJoint(Rigidbody originBody, Rigidbody targetBody, LinkType type, Vector3 anchorPosition)
         {
-            this._manageAttachNode();
             //this._joint = originBody.gameObject.AddComponent<ConfigurableJoint>();
             ////this._joint = part.attachJoint.Joint.rigidbody.gameObject.AddComponent<ConfigurableJoint>();
             //this._joint.connectedBody = targetBody;
@@ -186,7 +186,13 @@ namespace ActiveStruts.Modules
             if (!this.IsFreeAttached)
             {
                 this.Target.LinkType = type;
+                this.IsOwnVesselConnected = this.Target.vessel == this.vessel;
             }
+            else
+            {
+                this.IsOwnVesselConnected = FreeAttachPart.vessel == this.vessel;
+            }
+            this._manageAttachNode();
             PlayAttachSound();
         }
 
@@ -306,27 +312,34 @@ namespace ActiveStruts.Modules
             if (HighLogic.LoadedSceneIsEditor)
             {
                 this.part.OnEditorAttach += this.ProcessOnPartCopy;
+                //this.part.OnEditorDetach += this.HandleEditorDetach;
+                //Debug.Log("[AS] registered editor events");
             }
             this.Origin = this.part.transform;
             this._delayedStartFlag = true;
             this._ticksForDelayedStart = HighLogic.LoadedSceneIsEditor ? 0 : Config.Instance.StartDelay;
             this._strutRealignCounter = Config.Instance.StrutRealignInterval*(HighLogic.LoadedSceneIsEditor ? 3 : 0);
-            if (this._soundAttach == null || this._soundBreak == null || this._soundDetach == null ||
+            if (this.SoundAttach == null || this.SoundBreak == null || this.SoundDetach == null ||
                 !GameDatabase.Instance.ExistsAudioClip(Config.Instance.SoundAttachFileUrl) ||
                 !GameDatabase.Instance.ExistsAudioClip(Config.Instance.SoundDetachFileUrl) ||
                 !GameDatabase.Instance.ExistsAudioClip(Config.Instance.SoundBreakFileUrl))
             {
-                Debug.Log("[AS] sounds cannot be loaded." + (this._soundAttach == null ? "FXGroup not instantiated" : "sound file not found"));
+                Debug.Log("[AS] sounds cannot be loaded." + (this.SoundAttach == null ? "FXGroup not instantiated" : "sound file not found"));
                 this._soundFlag = false;
             }
             else
             {
-                SetupFXGroup(this._soundAttach, this.gameObject, Config.Instance.SoundAttachFileUrl);
-                SetupFXGroup(this._soundDetach, this.gameObject, Config.Instance.SoundDetachFileUrl);
-                SetupFXGroup(this._soundBreak, this.gameObject, Config.Instance.SoundBreakFileUrl);
+                SetupFXGroup(this.SoundAttach, this.gameObject, Config.Instance.SoundAttachFileUrl);
+                SetupFXGroup(this.SoundDetach, this.gameObject, Config.Instance.SoundDetachFileUrl);
+                SetupFXGroup(this.SoundBreak, this.gameObject, Config.Instance.SoundBreakFileUrl);
                 this._soundFlag = true;
             }
         }
+
+        //public void HandleEditorDetach()
+        //{
+        //    Debug.Log("[AS] I have been detached");
+        //}
 
         // ReSharper disable once InconsistentNaming
         private static void SetupFXGroup(FXGroup group, GameObject gameObject, string audioFileUrl)
@@ -343,17 +356,17 @@ namespace ActiveStruts.Modules
 
         public void PlayAttachSound()
         {
-            PlayAudio(_soundAttach);
+            PlayAudio(this.SoundAttach);
         }
 
         public void PlayDetachSound()
         {
-            PlayAudio(_soundDetach);
+            PlayAudio(this.SoundDetach);
         }
 
         public void PlayBreakSound()
         {
-            PlayAudio(_soundBreak);
+            PlayAudio(this.SoundBreak);
         }
 
         private void PlayAudio(FXGroup group)
@@ -391,7 +404,7 @@ namespace ActiveStruts.Modules
                 {
                     this._strutRealignCounter = Config.Instance.StrutRealignInterval;
                     this._realignStrut();
-                    this.LinkType = this.IsFreeAttached ? LinkType.Weak : this.IsTargetOnly ? LinkType.Normal : LinkType.Maximal;
+                    this.LinkType = this.IsFreeAttached ? LinkType.Weak : this.IsTargetOnly ? LinkType.Normal : LinkType.Maximum;
                 }
             }
             else
@@ -413,36 +426,65 @@ namespace ActiveStruts.Modules
             }
             if (this.Mode == Mode.Linked)
             {
-                //_manageAttachNode();
-                if (this.IsFreeAttached)
+                if (HighLogic.LoadedSceneIsEditor)
                 {
-                    if (this.FreeAttachPart != null && (HighLogic.LoadedSceneIsEditor || this.FreeAttachPart.vessel == this.vessel))
-                    {
-                        return;
-                    }
-                    this.Unlink();
                     return;
                 }
-                if (this.IsConnectionOrigin)
+                if (this.IsOwnVesselConnected)
                 {
-                    if (this.Target != null && (HighLogic.LoadedSceneIsEditor || this.Target.vessel == this.vessel))
+                    if (IsFreeAttached)
                     {
-                        return;
+                        if (FreeAttachPart != null)
+                        {
+                            if (FreeAttachPart.vessel != this.vessel)
+                            {
+                                this.IsOwnVesselConnected = false;
+                            }
+                        }
                     }
-                    this.DestroyJoint();
-                    this.DestroyStrut();
-                    this.Mode = Mode.Unlinked;
-                }
-                else
-                {
-                    if (this.Targeter != null && (HighLogic.LoadedSceneIsEditor || this.Targeter.vessel == this.vessel))
+                    else if (Target != null)
                     {
-                        return;
+                        if (!Target.vessel == this.vessel)
+                        {
+                            this.IsOwnVesselConnected = false;
+                        }
                     }
-                    this.DestroyStrut();
-                    this.Mode = Mode.Unlinked;
+                    if (!IsOwnVesselConnected)
+                    {
+                        this.Unlink();
+                    }
+                    this.UpdateGui();
                 }
-                this.UpdateGui();
+                //TODO decouple and staging handling
+                //_manageAttachNode();
+                //if (this.IsFreeAttached)
+                //{
+                //    if (this.FreeAttachPart != null && (HighLogic.LoadedSceneIsEditor || this.FreeAttachPart.vessel == this.vessel))
+                //    {
+                //        return;
+                //    }
+                //    this.Unlink();
+                //    return;
+                //}
+                //if (this.IsConnectionOrigin)
+                //{
+                //    if (this.Target != null && (HighLogic.LoadedSceneIsEditor || this.Target.vessel == this.vessel))
+                //    {
+                //        return;
+                //    }
+                //    this.DestroyJoint();
+                //    this.DestroyStrut();
+                //    this.Mode = Mode.Unlinked;
+                //}
+                //else
+                //{
+                //    if (this.Targeter != null && (HighLogic.LoadedSceneIsEditor || this.Targeter.vessel == this.vessel))
+                //    {
+                //        return;
+                //    }
+                //    this.DestroyStrut();
+                //    this.Mode = Mode.Unlinked;
+                //}                
             }
         }
 
@@ -461,7 +503,7 @@ namespace ActiveStruts.Modules
                     return;
                 }
                 var normDir = (this.Origin.position - (this.IsFreeAttached ? this._convertFreeAttachRayHitPointToStrutTarget() : this.Target.Origin.position)).normalized;
-                var force = (this.IsFreeAttached ? LinkType.Weak : this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal).GetJointStrength(); // + 1;
+                var force = (this.IsFreeAttached ? LinkType.Weak : this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximum).GetJointStrength(); // + 1;
                 this._jointAttachNode = new AttachNode {id = Guid.NewGuid().ToString(), attachedPart = targetPart};
                 this._jointAttachNode.breakingForce = this._jointAttachNode.breakingTorque = force;
                 this._jointAttachNode.position = targetPart.partTransform.InverseTransformPoint(this.IsFreeAttached ? this._convertFreeAttachRayHitPointToStrutTarget() : targetPart.partTransform.position);
@@ -545,7 +587,7 @@ namespace ActiveStruts.Modules
                 if (this.FreeAttachTarget != null)
                 {
                     var rayRes = Util.Util.PerformRaycast(this.Origin.position, this.FreeAttachTarget.PartOrigin.position, this.Origin.right);
-                    if (rayRes.HitCurrentVessel && rayRes.HittedPart != null && rayRes.DistanceFromOrigin <= Config.Instance.MaxDistance)
+                    if (rayRes.HittedPart != null && rayRes.DistanceFromOrigin <= Config.Instance.MaxDistance)
                     {
                         this.PlaceFreeAttach(rayRes.HittedPart, rayRes.Hit.point, false);
                         this.UpdateGui();
@@ -571,7 +613,7 @@ namespace ActiveStruts.Modules
                     {
                         this.CreateStrut(this.Target.Origin.position);
                     }
-                    this.CreateJoint(this.part.rigidbody, this.Target.part.rigidbody, this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal, this.Target.transform.position);
+                    this.CreateJoint(this.part.rigidbody, this.Target.part.rigidbody, this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximum, this.Target.transform.position);
                     this.Mode = Mode.Linked;
                     this.Target.Mode = Mode.Linked;
                     this.IsLinked = true;
@@ -589,7 +631,7 @@ namespace ActiveStruts.Modules
                     this.CreateStrut(this.Targeter.Origin.position, 0.5f);
                     this.Mode = Mode.Linked;
                     this.IsLinked = true;
-                    this.LinkType = LinkType.Maximal;
+                    this.LinkType = LinkType.Maximum;
                 }
             }
             this.UpdateGui();
@@ -623,6 +665,7 @@ namespace ActiveStruts.Modules
             this.part.SetHighlightDefault();
             this.Mode = Mode.Linked;
             this.IsConnectionOrigin = false;
+            this.IsFreeAttached = false;
             if (!this.IsTargetOnly)
             {
                 this.CreateStrut(this.Targeter.Origin.position, 0.5f);
@@ -637,7 +680,7 @@ namespace ActiveStruts.Modules
             this.Mode = Mode.Linked;
             this.IsLinked = true;
             this.IsConnectionOrigin = true;
-            this.CreateJoint(this.part.rigidbody, target.part.rigidbody, target.IsTargetOnly ? LinkType.Normal : LinkType.Maximal, this.Target.transform.position);
+            this.CreateJoint(this.part.rigidbody, target.part.rigidbody, target.IsTargetOnly ? LinkType.Normal : LinkType.Maximum, this.Target.transform.position);
             this.CreateStrut(target.Origin.position, target.IsTargetOnly ? 1 : 0.5f);
             Util.Util.ResetAllFromTargeting();
             OSD.Success("Link established!");
@@ -710,19 +753,38 @@ namespace ActiveStruts.Modules
         [KSPEvent(name = "Unlink", active = false, guiName = "Unlink", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = 50)]
         public void Unlink()
         {
+            this.ProcessUnlink();
+        }
+
+        public void ProcessUnlink(bool secondary = false)
+        {
             if (!this.IsTargetOnly && (this.Target != null || this.Targeter != null))
             {
                 if (this.IsConnectionOrigin && !this.IsFreeAttached)
                 {
                     if (this.Target != null)
                     {
-                        this.Target.Unlink();
+                        try
+                        {
+                            this.Target.ProcessUnlink(true);
+                        }
+                        catch (NullReferenceException)
+                        {
+                            //fail silently
+                        }
                     }
-                    OSD.Success("Unlinked!");
                 }
-                else if (!this.IsConnectionOrigin)
+                else if (!this.IsConnectionOrigin && !secondary && Targeter != null)
                 {
-                    this.Targeter.Unlink();
+                    try
+                    {
+                        this.Targeter.Unlink();
+                    }
+                    catch (NullReferenceException)
+                    {
+                        //fail silently
+                    }
+                    return;
                 }
                 if (this.IsFreeAttached)
                 {
@@ -740,6 +802,7 @@ namespace ActiveStruts.Modules
                 this.IsConnectionOrigin = false;
                 this.UpdateGui();
                 PlayDetachSound();
+                OSD.Success("Unlinked!");
                 return;
             }
             if (this.IsTargetOnly)
@@ -937,6 +1000,19 @@ namespace ActiveStruts.Modules
             {
                 this.Mode = Mode.Unlinked;
             }
+            this.Events.Sort((l, r) =>
+                             {
+                                 if (l.name == "Link" && r.name == "FreeAttach")
+                                 {
+                                     return -1;
+                                 }
+                                 if (l.name == "FreeAttach" && r.name == "FreeAttachStraight")
+                                 {
+                                     return -1;
+                                 }
+                                 return string.Compare(l.name, r.name, StringComparison.Ordinal);
+                             }
+                );
             this.UpdateGui();
         }
 
