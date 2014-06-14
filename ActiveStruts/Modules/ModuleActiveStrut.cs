@@ -22,8 +22,8 @@ THE SOFTWARE.
 */
 
 using System;
-using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using ActiveStruts.Addons;
 using ActiveStruts.Util;
 using UnityEngine;
@@ -42,9 +42,13 @@ namespace ActiveStruts.Modules
         [KSPField(isPersistant = true)] public bool IsFreeAttached = false;
         [KSPField(isPersistant = true)] public bool IsHalfWayExtended = false;
         [KSPField(isPersistant = true)] public bool IsLinked = false;
+        [KSPField(isPersistant = true)] public bool IsOwnVesselConnected = false;
         [KSPField(isPersistant = true)] public bool IsTargetOnly = false;
         public ModuleActiveStrut OldTargeter;
         public Transform Origin;
+        public FXGroup SoundAttach;
+        public FXGroup SoundBreak;
+        public FXGroup SoundDetach;
         [KSPField(isPersistant = false, guiActive = true)] public string State = "n.a.";
         [KSPField(guiActive = true)] public string Strength = LinkType.None.ToString();
         public Transform Strut;
@@ -55,17 +59,15 @@ namespace ActiveStruts.Modules
         private Part _freeAttachPart;
         private ModuleActiveStrutFreeAttachTarget _freeAttachTarget;
         private ConfigurableJoint _joint;
-        private float _jointBrokeForce;
+        private AttachNode _jointAttachNode;
         private bool _jointBroken;
         private LinkType _linkType;
         private Mode _mode = Mode.Undefined;
+        private PartJoint _partJoint;
+        private bool _soundFlag;
         private int _strutRealignCounter;
         private int _ticksForDelayedStart;
-        private AttachNode _jointAttachNode;
-        private PartJoint _partJoint;
-        public FXGroup SoundAttach, SoundDetach, SoundBreak;
-        private bool _soundFlag;
-        [KSPField(isPersistant = true)] public bool IsOwnVesselConnected = false;
+        private object _jointBreakLock;
 
         private Part FreeAttachPart
         {
@@ -157,7 +159,7 @@ namespace ActiveStruts.Modules
             set { this.TargeterId = value != null ? value.ID.ToString() : Guid.Empty.ToString(); }
         }
 
-        [KSPEvent(name = "AbortLink", active = false, guiName = "Abort Link", guiActiveEditor = true, guiActiveUnfocused = true, unfocusedRange = 50)]
+        [KSPEvent(name = "AbortLink", active = false, guiName = "Abort Link", guiActiveEditor = true, guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
         public void AbortLink()
         {
             this.Mode = Mode.Unlinked;
@@ -169,19 +171,20 @@ namespace ActiveStruts.Modules
 
         public void CreateJoint(Rigidbody originBody, Rigidbody targetBody, LinkType type, Vector3 anchorPosition)
         {
-            //this._joint = originBody.gameObject.AddComponent<ConfigurableJoint>();
-            ////this._joint = part.attachJoint.Joint.rigidbody.gameObject.AddComponent<ConfigurableJoint>();
-            //this._joint.connectedBody = targetBody;
-            //this._joint.breakForce = this._joint.breakTorque = type.GetJointStrength();
-            //this._joint.xMotion = ConfigurableJointMotion.Locked;
-            //this._joint.yMotion = ConfigurableJointMotion.Locked;
-            //this._joint.zMotion = ConfigurableJointMotion.Locked;
-            //this._joint.angularXMotion = ConfigurableJointMotion.Locked;
-            //this._joint.angularYMotion = ConfigurableJointMotion.Locked;
-            //this._joint.angularZMotion = ConfigurableJointMotion.Locked;
-            //this._joint.projectionAngle = 0f;
-            //this._joint.projectionDistance = 0f;
-            //this._joint.anchor = anchorPosition;
+            var breakForce = type.GetJointStrength();
+            this._joint = originBody.gameObject.AddComponent<ConfigurableJoint>();
+            //this._joint = part.attachJoint.Joint.rigidbody.gameObject.AddComponent<ConfigurableJoint>();
+            this._joint.connectedBody = targetBody;
+            this._joint.breakForce = this._joint.breakTorque = breakForce;
+            this._joint.xMotion = ConfigurableJointMotion.Locked;
+            this._joint.yMotion = ConfigurableJointMotion.Locked;
+            this._joint.zMotion = ConfigurableJointMotion.Locked;
+            this._joint.angularXMotion = ConfigurableJointMotion.Locked;
+            this._joint.angularYMotion = ConfigurableJointMotion.Locked;
+            this._joint.angularZMotion = ConfigurableJointMotion.Locked;
+            this._joint.projectionAngle = 0f;
+            this._joint.projectionDistance = 0f;
+            this._joint.anchor = anchorPosition;
             this.LinkType = type;
             if (!this.IsFreeAttached)
             {
@@ -190,10 +193,11 @@ namespace ActiveStruts.Modules
             }
             else
             {
-                this.IsOwnVesselConnected = FreeAttachPart.vessel == this.vessel;
+                this.IsOwnVesselConnected = this.FreeAttachPart.vessel == this.vessel;
             }
-            this._manageAttachNode();
-            PlayAttachSound();
+            this._manageAttachNode(breakForce);
+            Debug.Log("[AS] created a joint with strength: " + breakForce);
+            this.PlayAttachSound();
         }
 
         public void CreateStrut(Vector3 target, float distancePercent = 1)
@@ -211,12 +215,29 @@ namespace ActiveStruts.Modules
 
         public void DestroyJoint()
         {
-            DestroyImmediate(this._joint);
-            if (this._partJoint != null)
+            try
             {
-                this._partJoint.DestroyJoint();
+                if (this._partJoint != null)
+                {
+                    this._partJoint.DestroyJoint();
+                    this.part.attachNodes.Remove(this._jointAttachNode);
+                    this._jointAttachNode.owner = null;
+                }
+                DestroyImmediate(this._partJoint);
             }
-            DestroyImmediate(this._partJoint);
+            catch (Exception)
+            {
+                //try
+                //{
+                //    Destroy(this._joint);
+                //    Destroy(this._partJoint);
+                //}
+                //catch (Exception)
+                //{
+                //    //nothing to destroy
+                //}
+            }
+            DestroyImmediate(this._joint);
             this._partJoint = null;
             this._jointAttachNode = null;
             this._joint = null;
@@ -228,7 +249,7 @@ namespace ActiveStruts.Modules
             this.Strut.localScale = Vector3.zero;
         }
 
-        [KSPEvent(name = "FreeAttach", active = false, guiActiveEditor = false, guiName = "FreeAttach Link", guiActiveUnfocused = true, unfocusedRange = 50)]
+        [KSPEvent(name = "FreeAttach", active = false, guiActiveEditor = false, guiName = "FreeAttach Link", guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
         public void FreeAttach()
         {
             if (HighLogic.LoadedSceneIsEditor)
@@ -240,7 +261,7 @@ namespace ActiveStruts.Modules
             ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
         }
 
-        [KSPEvent(name = "FreeAttachStraight", active = false, guiName = "Straight Up FreeAttach", guiActiveUnfocused = true, unfocusedRange = 50)]
+        [KSPEvent(name = "FreeAttachStraight", active = false, guiName = "Straight Up FreeAttach", guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
         public void FreeAttachStraight()
         {
             var ray = new Ray(this.Origin.position, this.Origin.transform.right);
@@ -274,7 +295,7 @@ namespace ActiveStruts.Modules
             }
         }
 
-        [KSPEvent(name = "Link", active = false, guiName = "Link", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = 50)]
+        [KSPEvent(name = "Link", active = false, guiName = "Link", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
         public void Link()
         {
             if (HighLogic.LoadedSceneIsEditor)
@@ -295,14 +316,41 @@ namespace ActiveStruts.Modules
 
         public void OnJointBreak(float breakForce)
         {
+            //Destroy(this._partJoint);
+            //Destroy(this._joint);
+            try
+            {
+                this._partJoint.DestroyJoint();
+                this.part.attachNodes.Remove(this._jointAttachNode);
+                this._jointAttachNode.owner = null;
+            }
+            catch (NullReferenceException)
+            {
+                //already destroyed
+            }
+            //lock (_jointBreakLock)
+            //{
+            //this.Unlink();
+            //if (this._jointBroken)
+            //{
+            //    return;
+            //}
             this._jointBroken = true;
-            this._jointBrokeForce = breakForce;
-            this.DestroyJoint();
-            PlayBreakSound();
+            var strength = this.LinkType.GetJointStrength();
+            var diff = breakForce - strength;
+            //this.DestroyJoint();
+            this.PlayBreakSound();
+            OSD.Warn("Joint broken! Applied force was " + breakForce.ToString("R") + " while the joint could only take " + strength.ToString("R") + " (difference: " + diff.ToString("R") + ")", 5);
+            //}
         }
+
+        //public override void OnFixedUpdate()
+        //{
+        //}
 
         public override void OnStart(StartState state)
         {
+            _jointBreakLock = new object();
             if (!this.IsTargetOnly)
             {
                 this.Strut = this.part.FindModelTransform(this.StrutName);
@@ -342,41 +390,6 @@ namespace ActiveStruts.Modules
         //}
 
         // ReSharper disable once InconsistentNaming
-        private static void SetupFXGroup(FXGroup group, GameObject gameObject, string audioFileUrl)
-        {
-            group.audio = gameObject.AddComponent<AudioSource>();
-            group.audio.clip = GameDatabase.Instance.GetAudioClip(audioFileUrl);
-            group.audio.dopplerLevel = 0f;
-            group.audio.rolloffMode = AudioRolloffMode.Linear;
-            group.audio.maxDistance = 30f;
-            group.audio.loop = false;
-            group.audio.playOnAwake = false;
-            group.audio.volume = GameSettings.SHIP_VOLUME;
-        }
-
-        public void PlayAttachSound()
-        {
-            PlayAudio(this.SoundAttach);
-        }
-
-        public void PlayDetachSound()
-        {
-            PlayAudio(this.SoundDetach);
-        }
-
-        public void PlayBreakSound()
-        {
-            PlayAudio(this.SoundBreak);
-        }
-
-        private void PlayAudio(FXGroup group)
-        {
-            if (!_soundFlag || group == null || group.audio == null)
-            {
-                return;
-            }
-            group.audio.Play();
-        }
 
         public override void OnUpdate()
         {
@@ -388,10 +401,7 @@ namespace ActiveStruts.Modules
             if (this._jointBroken)
             {
                 this._jointBroken = false;
-                var strength = this.LinkType.GetJointStrength();
-                var diff = this._jointBrokeForce - strength;
                 this.Unlink();
-                OSD.Warn("Joint broken! Applied force was " + this._jointBrokeForce.ToString("R") + " while the joint could only take " + strength.ToString("R") + " (difference: " + diff.ToString("R") + ")", 5);
                 return;
             }
             if (this.IsLinked)
@@ -404,7 +414,7 @@ namespace ActiveStruts.Modules
                 {
                     this._strutRealignCounter = Config.Instance.StrutRealignInterval;
                     this._realignStrut();
-                    this.LinkType = this.IsFreeAttached ? LinkType.Weak : this.IsTargetOnly ? LinkType.Normal : LinkType.Maximum;
+                    this.LinkType = this.IsFreeAttached ? LinkType.Weak : this.IsConnectionOrigin ? this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximum : this.IsTargetOnly ? LinkType.Normal : LinkType.Maximum;
                 }
             }
             else
@@ -432,24 +442,24 @@ namespace ActiveStruts.Modules
                 }
                 if (this.IsOwnVesselConnected)
                 {
-                    if (IsFreeAttached)
+                    if (this.IsFreeAttached)
                     {
-                        if (FreeAttachPart != null)
+                        if (this.FreeAttachPart != null)
                         {
-                            if (FreeAttachPart.vessel != this.vessel)
+                            if (this.FreeAttachPart.vessel != this.vessel)
                             {
                                 this.IsOwnVesselConnected = false;
                             }
                         }
                     }
-                    else if (Target != null)
+                    else if (this.Target != null)
                     {
-                        if (!Target.vessel == this.vessel)
+                        if (!this.Target.vessel == this.vessel)
                         {
                             this.IsOwnVesselConnected = false;
                         }
                     }
-                    if (!IsOwnVesselConnected)
+                    if (!this.IsOwnVesselConnected)
                     {
                         this.Unlink();
                     }
@@ -485,40 +495,6 @@ namespace ActiveStruts.Modules
                 //    this.DestroyStrut();
                 //    this.Mode = Mode.Unlinked;
                 //}                
-            }
-        }
-
-        private void _manageAttachNode()
-        {
-            if (!this.IsConnectionOrigin || this.Mode != Mode.Linked || this.IsTargetOnly || this._jointAttachNode != null || !HighLogic.LoadedSceneIsFlight)
-            {
-                return;
-            }
-            try
-            {
-                //Debug.Log("[AS] trying to create partJoint");
-                var targetPart = this.IsFreeAttached ? this.FreeAttachPart : this.Target.part;
-                if (targetPart == null)
-                {
-                    return;
-                }
-                var normDir = (this.Origin.position - (this.IsFreeAttached ? this._convertFreeAttachRayHitPointToStrutTarget() : this.Target.Origin.position)).normalized;
-                var force = (this.IsFreeAttached ? LinkType.Weak : this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximum).GetJointStrength(); // + 1;
-                this._jointAttachNode = new AttachNode {id = Guid.NewGuid().ToString(), attachedPart = targetPart};
-                this._jointAttachNode.breakingForce = this._jointAttachNode.breakingTorque = force;
-                this._jointAttachNode.position = targetPart.partTransform.InverseTransformPoint(this.IsFreeAttached ? this._convertFreeAttachRayHitPointToStrutTarget() : targetPart.partTransform.position);
-                this._jointAttachNode.orientation = targetPart.partTransform.InverseTransformDirection(normDir);
-                this._jointAttachNode.size = 1;
-                this._jointAttachNode.ResourceXFeed = false;
-                this.part.attachNodes.Add(this._jointAttachNode);
-                this._jointAttachNode.owner = this.part;
-                this._partJoint = PartJoint.Create(this.part, targetPart, this._jointAttachNode, (AttachNode) null, AttachModes.SRF_ATTACH);
-                //Debug.Log("[AS] part joint created");
-            }
-            catch (Exception e)
-            {
-                this._jointAttachNode = null;
-                Debug.Log("[AS] failed to create attachjoint: " + e.Message + " " + e.StackTrace);
             }
         }
 
@@ -566,6 +542,30 @@ namespace ActiveStruts.Modules
             this.UpdateGui();
         }
 
+        public void PlayAttachSound()
+        {
+            this.PlayAudio(this.SoundAttach);
+        }
+
+        private void PlayAudio(FXGroup group)
+        {
+            if (!this._soundFlag || group == null || group.audio == null)
+            {
+                return;
+            }
+            group.audio.Play();
+        }
+
+        public void PlayBreakSound()
+        {
+            this.PlayAudio(this.SoundBreak);
+        }
+
+        public void PlayDetachSound()
+        {
+            this.PlayAudio(this.SoundDetach);
+        }
+
         public void ProcessOnPartCopy()
         {
             var allModules = Util.Util.GetAllActiveStruts();
@@ -578,6 +578,84 @@ namespace ActiveStruts.Modules
                 this.Unlink();
                 this.OnUpdate();
             }
+        }
+
+        public void ProcessUnlink(bool secondary = false)
+        {
+            if (!this.IsTargetOnly && (this.Target != null || this.Targeter != null))
+            {
+                if (!this.IsConnectionOrigin && !secondary && this.Targeter != null)
+                {
+                    try
+                    {
+                        this.Targeter.Unlink();
+                    }
+                    catch (NullReferenceException)
+                    {
+                        //fail silently
+                    }
+                    return;
+                }
+                if (this.IsFreeAttached)
+                {
+                    this.IsFreeAttached = false;
+                }
+                this.Mode = Mode.Unlinked;
+                this.IsLinked = false;
+                this.DestroyJoint();
+                this.DestroyStrut();
+                this.LinkType = LinkType.None;
+                if (this.IsConnectionOrigin)
+                {
+                    if (!this.IsFreeAttached)
+                    {
+                        if (this.Target != null)
+                        {
+                            try
+                            {
+                                this.Target.ProcessUnlink(true);
+                                if (HighLogic.LoadedSceneIsEditor)
+                                {
+                                    this.Target.Targeter = null;
+                                    this.Target = null;
+                                }
+                                //this.Target.UpdateGui();
+                            }
+                            catch (NullReferenceException)
+                            {
+                                //fail silently
+                            }
+                        }
+                    }
+                    OSD.Success("Unlinked!");
+                    this.PlayDetachSound();
+                }
+                this.IsConnectionOrigin = false;
+                this.UpdateGui();
+                return;
+            }
+            if (this.IsTargetOnly)
+            {
+                if (!this.AnyTargetersConnected())
+                {
+                    this.Mode = Mode.Unlinked;
+                    this.IsLinked = false;
+                }
+                this.UpdateGui();
+                return;
+            }
+            if (this.IsFreeAttached)
+            {
+                this.IsFreeAttached = false;
+            }
+            this.FreeAttachTarget = null;
+            this.Mode = Mode.Unlinked;
+            this.IsLinked = false;
+            this.DestroyStrut();
+            this.DestroyJoint();
+            this.LinkType = LinkType.None;
+            this.UpdateGui();
+            this.PlayDetachSound();
         }
 
         private void Reconnect()
@@ -603,6 +681,7 @@ namespace ActiveStruts.Modules
             }
             if (this.IsConnectionOrigin)
             {
+                Debug.Log("[AS] reconnecting targeter");
                 if (this.Target != null && this.IsPossibleTarget(this.Target))
                 {
                     if (!this.Target.IsTargetOnly)
@@ -617,6 +696,7 @@ namespace ActiveStruts.Modules
                     this.Mode = Mode.Linked;
                     this.Target.Mode = Mode.Linked;
                     this.IsLinked = true;
+                    Debug.Log("[AS] reconnected targeter");
                 }
             }
             else
@@ -658,7 +738,7 @@ namespace ActiveStruts.Modules
             }
         }
 
-        [KSPEvent(name = "SetAsTarget", active = false, guiName = "Set as Target", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = 50)]
+        [KSPEvent(name = "SetAsTarget", active = false, guiName = "Set as Target", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
         public void SetAsTarget()
         {
             this.IsLinked = true;
@@ -695,7 +775,19 @@ namespace ActiveStruts.Modules
             this.Mode = Mode.Target;
         }
 
-        [KSPEvent(name = "ToggleLink", active = false, guiName = "Toggle Link", guiActiveUnfocused = true, unfocusedRange = 50)]
+        private static void SetupFXGroup(FXGroup group, GameObject gameObject, string audioFileUrl)
+        {
+            group.audio = gameObject.AddComponent<AudioSource>();
+            group.audio.clip = GameDatabase.Instance.GetAudioClip(audioFileUrl);
+            group.audio.dopplerLevel = 0f;
+            group.audio.rolloffMode = AudioRolloffMode.Linear;
+            group.audio.maxDistance = 30f;
+            group.audio.loop = false;
+            group.audio.playOnAwake = false;
+            group.audio.volume = GameSettings.SHIP_VOLUME;
+        }
+
+        [KSPEvent(name = "ToggleLink", active = false, guiName = "Toggle Link", guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
         public void ToggleLink()
         {
             if (this.Mode == Mode.Linked)
@@ -750,83 +842,10 @@ namespace ActiveStruts.Modules
             }
         }
 
-        [KSPEvent(name = "Unlink", active = false, guiName = "Unlink", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = 50)]
+        [KSPEvent(name = "Unlink", active = false, guiName = "Unlink", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
         public void Unlink()
         {
             this.ProcessUnlink();
-        }
-
-        public void ProcessUnlink(bool secondary = false)
-        {
-            if (!this.IsTargetOnly && (this.Target != null || this.Targeter != null))
-            {
-                if (this.IsConnectionOrigin && !this.IsFreeAttached)
-                {
-                    if (this.Target != null)
-                    {
-                        try
-                        {
-                            this.Target.ProcessUnlink(true);
-                        }
-                        catch (NullReferenceException)
-                        {
-                            //fail silently
-                        }
-                    }
-                }
-                else if (!this.IsConnectionOrigin && !secondary && Targeter != null)
-                {
-                    try
-                    {
-                        this.Targeter.Unlink();
-                    }
-                    catch (NullReferenceException)
-                    {
-                        //fail silently
-                    }
-                    return;
-                }
-                if (this.IsFreeAttached)
-                {
-                    this.IsFreeAttached = false;
-                }
-                this.Mode = Mode.Unlinked;
-                this.IsLinked = false;
-                this.DestroyJoint();
-                this.DestroyStrut();
-                this.LinkType = LinkType.None;
-                if (this.IsConnectionOrigin)
-                {
-                    this.Target.UpdateGui();
-                }
-                this.IsConnectionOrigin = false;
-                this.UpdateGui();
-                PlayDetachSound();
-                OSD.Success("Unlinked!");
-                return;
-            }
-            if (this.IsTargetOnly)
-            {
-                if (!this.AnyTargetersConnected())
-                {
-                    this.Mode = Mode.Unlinked;
-                    this.IsLinked = false;
-                }
-                this.UpdateGui();
-                return;
-            }
-            if (this.IsFreeAttached)
-            {
-                this.IsFreeAttached = false;
-            }
-            this.FreeAttachTarget = null;
-            this.Mode = Mode.Unlinked;
-            this.IsLinked = false;
-            this.DestroyStrut();
-            this.DestroyJoint();
-            this.LinkType = LinkType.None;
-            this.UpdateGui();
-            PlayDetachSound();
         }
 
         public void UpdateGui()
@@ -1006,14 +1025,65 @@ namespace ActiveStruts.Modules
                                  {
                                      return -1;
                                  }
+                                 if (r.name == "Link" && l.name == "FreeAttach")
+                                 {
+                                     return 1;
+                                 }
                                  if (l.name == "FreeAttach" && r.name == "FreeAttachStraight")
                                  {
                                      return -1;
+                                 }
+                                 if (r.name == "FreeAttach" && l.name == "FreeAttachStraight")
+                                 {
+                                     return 1;
+                                 }
+                                 if (l.name == "Link" && r.name == "FreeAttachStraight")
+                                 {
+                                     return -1;
+                                 }
+                                 if (r.name == "Link" && l.name == "FreeAttachStraight")
+                                 {
+                                     return 1;
                                  }
                                  return string.Compare(l.name, r.name, StringComparison.Ordinal);
                              }
                 );
             this.UpdateGui();
+        }
+
+        private void _manageAttachNode(float breakForce)
+        {
+            if (!this.IsConnectionOrigin || this.IsTargetOnly || this._jointAttachNode != null || !HighLogic.LoadedSceneIsFlight)
+            {
+                return;
+            }
+            try
+            {
+                //Debug.Log("[AS] trying to create partJoint");
+                var targetPart = this.IsFreeAttached ? this.FreeAttachPart : this.Target.part;
+                if (targetPart == null)
+                {
+                    return;
+                }
+                var normDir = (this.Origin.position - (this.IsFreeAttached ? this._convertFreeAttachRayHitPointToStrutTarget() : this.Target.Origin.position)).normalized;
+                //var force = (this.IsFreeAttached ? LinkType.Weak : this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximum).GetJointStrength(); // + 1;
+                this._jointAttachNode = new AttachNode {id = Guid.NewGuid().ToString(), attachedPart = targetPart};
+                this._jointAttachNode.breakingForce = this._jointAttachNode.breakingTorque = Mathf.Infinity;
+                this._jointAttachNode.position = targetPart.partTransform.InverseTransformPoint(this.IsFreeAttached ? this._convertFreeAttachRayHitPointToStrutTarget() : targetPart.partTransform.position);
+                this._jointAttachNode.orientation = targetPart.partTransform.InverseTransformDirection(normDir);
+                this._jointAttachNode.size = 1;
+                this._jointAttachNode.ResourceXFeed = false;
+                this._jointAttachNode.attachMethod = AttachNodeMethod.FIXED_JOINT;
+                this.part.attachNodes.Add(this._jointAttachNode);
+                this._jointAttachNode.owner = this.part;
+                this._partJoint = PartJoint.Create(this.part, this.IsFreeAttached ? targetPart : (targetPart.parent ?? targetPart), this._jointAttachNode, null, AttachModes.SRF_ATTACH);
+                //Debug.Log("[AS] part joint created");
+            }
+            catch (Exception e)
+            {
+                this._jointAttachNode = null;
+                Debug.Log("[AS] failed to create attachjoint: " + e.Message + " " + e.StackTrace);
+            }
         }
 
         private void _realignStrut()

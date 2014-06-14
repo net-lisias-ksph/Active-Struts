@@ -12,6 +12,7 @@ namespace ActiveStruts.Util
         private const string _moduleName = "ModuleActiveStrut";
         private const string _editorInputLockId = "[AS] temp editor lock";
         public const float UnfocusedRange = 3f;
+        public const int TargetHighlightDuration = 3;
 
         // ReSharper disable once InconsistentNaming
         private const string _moduleActiveStrutFreeAttachTarget = "ModuleActiveStrutFreeAttachTarget";
@@ -21,9 +22,9 @@ namespace ActiveStruts.Util
                                                                            {
                                                                                {"MaxDistance", new SettingsEntry(15)},
                                                                                {"MaxAngle", new SettingsEntry(95)},
-                                                                               {"WeakJointStrength", new SettingsEntry(50)},
-                                                                               {"NormalJointStrength", new SettingsEntry(500)},
-                                                                               {"MaximalJointStrength", new SettingsEntry(2000)},
+                                                                               {"WeakJointStrength", new SettingsEntry(5)},
+                                                                               {"NormalJointStrength", new SettingsEntry(20)},
+                                                                               {"MaximalJointStrength", new SettingsEntry(100)},
                                                                                {"ConnectorDimension", new SettingsEntry(0.5f)},
                                                                                {"ColorTransparency", new SettingsEntry(0.7f)},
                                                                                {"FreeAttachDistanceTolerance", new SettingsEntry(0.1f)},
@@ -36,21 +37,6 @@ namespace ActiveStruts.Util
                                                                            };
 
         private static Config _instance;
-
-        public string SoundAttachFileUrl
-        {
-            get { return _getValue<string>("SoundAttachFile"); }
-        }
-
-        public string SoundDetachFileUrl
-        {
-            get { return _getValue<string>("SoundDetachFile"); }
-        }
-
-        public string SoundBreakFileUrl
-        {
-            get { return _getValue<string>("SoundBreakFile"); }
-        }
 
         public float ColorTransparency
         {
@@ -109,7 +95,7 @@ namespace ActiveStruts.Util
         public float MaximalJointStrength
         {
             get { return (float) _getValue<double>("MaximalJointStrength"); }
-        }
+            }
 
         public string ModuleActiveStrutFreeAttachTarget
         {
@@ -126,6 +112,21 @@ namespace ActiveStruts.Util
         public float NormalJointStrength
         {
             get { return (float) _getValue<double>("NormalJointStrength"); }
+        }
+
+        public string SoundAttachFileUrl
+        {
+            get { return _getValue<string>("SoundAttachFile"); }
+        }
+
+        public string SoundBreakFileUrl
+        {
+            get { return _getValue<string>("SoundBreakFile"); }
+        }
+
+        public string SoundDetachFileUrl
+        {
+            get { return _getValue<string>("SoundDetachFile"); }
         }
 
         public int StartDelay

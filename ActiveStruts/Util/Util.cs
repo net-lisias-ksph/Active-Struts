@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using ActiveStruts.Addons;
 using ActiveStruts.Modules;
 using UnityEngine;
 
@@ -28,6 +27,15 @@ namespace ActiveStruts.Util
         public static bool AnyTargetersConnected(this ModuleActiveStrut target)
         {
             return GetAllActiveStruts().Any(m => !m.IsTargetOnly && m.Mode == Mode.Linked && m.Target != null && m.Target == target);
+        }
+
+        public static void UnlinkAllConnectedTargeters(this ModuleActiveStrut target)
+        {
+            var allTargeters = GetAllActiveStruts().Where(m => !m.IsTargetOnly && m.Mode == Mode.Linked && m.Target != null && m.Target == target).ToList();
+            foreach (var moduleActiveStrut in allTargeters)
+            {
+                moduleActiveStrut.Unlink();
+            }
         }
 
         public static FreeAttachTargetCheck CheckFreeAttachPoint(this ModuleActiveStrut origin)
@@ -95,8 +103,8 @@ namespace ActiveStruts.Util
                 var allParts = FlightGlobals.Vessels.SelectMany(v => v.parts).ToList();
                 return
                     allParts.Where(p => p.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget))
-                                 .Select(p => p.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget)
-                                 .ToList();
+                            .Select(p => p.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget)
+                            .ToList();
             }
             if (!HighLogic.LoadedSceneIsEditor)
             {

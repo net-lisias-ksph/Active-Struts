@@ -10,11 +10,9 @@ namespace ActiveStruts.Addons
     [KSPAddon(KSPAddon.Startup.EveryScene, false)]
     public class ActiveStrutsAddon : MonoBehaviour
     {
-        private const int TargetHighlightRemoveInterval = 700;
         private static GameObject _connector;
         private bool _resetAllHighlighting;
-        private int _targetHighlightRemoveCounter;
-        private List<Part> _targetHighlightedParts;
+        private List<HighlightedTargetPart> _targetHighlightedParts;
         public static ModuleActiveStrut CurrentTargeter { get; set; }
         public static AddonMode Mode { get; set; }
         public static Vector3 Origin { get; set; }
@@ -45,11 +43,23 @@ namespace ActiveStruts.Addons
             {
                 return;
             }
-            if (module.IsConnectionOrigin && module.Target != null && (HighLogic.LoadedSceneIsEditor || module.Target.part.vessel == data.vessel))
+            if (module.IsConnectionOrigin && module.Target != null)
             {
                 module.Target.part.SetHighlightDefault();
+                var part = _targetHighlightedParts.Where(p => p.ModuleID == module.ID).Select(p => p).FirstOrDefault();
+                if (part != null)
+                {
+                    try
+                    {
+                        this._targetHighlightedParts.Remove(part);
+                    }
+                    catch (NullReferenceException)
+                    {
+                        //multithreading
+                    }
+                }
             }
-            else if (module.Target != null && (!module.IsConnectionOrigin && module.Targeter != null && (HighLogic.LoadedSceneIsEditor || module.Target.part.vessel == data.vessel)))
+            else if (module.Target != null && (!module.IsConnectionOrigin && module.Targeter != null))
             {
                 module.Targeter.part.SetHighlightDefault();
             }
@@ -67,21 +77,21 @@ namespace ActiveStruts.Addons
             {
                 return;
             }
-            if (module.IsConnectionOrigin && module.Target != null && (HighLogic.LoadedSceneIsEditor || module.Target.part.vessel == data.vessel))
+            if (module.IsConnectionOrigin && module.Target != null)
             {
                 module.Target.part.SetHighlightColor(Color.cyan);
                 module.Target.part.SetHighlight(true);
-                this._targetHighlightedParts.Add(module.Target.part);
+                this._targetHighlightedParts.Add(new HighlightedTargetPart(module.Target.part, module.ID));
             }
-            else if (module.Targeter != null && !module.IsConnectionOrigin && (HighLogic.LoadedSceneIsEditor || module.Targeter.part.vessel == data.vessel))
+            else if (module.Targeter != null && !module.IsConnectionOrigin)
             {
-                if (module.IsTargetOnly)
-                {
-                    return;
-                }
+                //if (module.IsTargetOnly)
+                //{
+                //    return;
+                //}
                 module.Targeter.part.SetHighlightColor(Color.cyan);
                 module.Targeter.part.SetHighlight(true);
-                this._targetHighlightedParts.Add(module.Targeter.part);
+                this._targetHighlightedParts.Add(new HighlightedTargetPart(module.Targeter.part, module.ID));
             }
         }
 
@@ -91,8 +101,7 @@ namespace ActiveStruts.Addons
             {
                 return;
             }
-            this._targetHighlightRemoveCounter = TargetHighlightRemoveInterval;
-            this._targetHighlightedParts = new List<Part>();
+            this._targetHighlightedParts = new List<HighlightedTargetPart>();
             _connector = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             _connector.name = "ASConn";
             DestroyImmediate(_connector.collider);
@@ -108,17 +117,39 @@ namespace ActiveStruts.Addons
             {
                 GameEvents.onPartRemove.Add(this.HandleEditorPartDetach);
             }
-            else 
-                if (HighLogic.LoadedSceneIsFlight)
+            else if (HighLogic.LoadedSceneIsFlight)
             {
                 //GameEvents.onVesselWasModified.Add(_handleFlightVesselChange);
                 //GameEvents.onPartUndock.Add(this.HandleFlightPartUndock);
+                GameEvents.onPartAttach.Add(this.HandleFlightPartAttach);
+                GameEvents.onPartRemove.Add(this.HandleFlightPartAttach);
             }
         }
 
-        public void HandleFlightPartUndock(Part data)
+        public void HandleFlightPartAttach(GameEvents.HostTargetAction<Part, Part> hostTargetAction)
         {
-            Debug.Log("[AS] part undocked");
+            try
+            {
+                if (!FlightGlobals.ActiveVessel.isEVA)
+                {
+                    return;
+                }
+                foreach (var module in hostTargetAction.target.GetComponentsInChildren<ModuleActiveStrut>())
+                {
+                    if (module.IsTargetOnly)
+                    {
+                        module.UnlinkAllConnectedTargeters();
+                    }
+                    else
+                    {
+                        module.Unlink();
+                    }                    
+                }
+            }
+            catch (NullReferenceException)
+            {
+                //thrown on launch, don't know why since FlightGlobals.ActiveVessel can't be null according to the API
+            }
         }
 
         private void HandleEditorPartDetach(GameEvents.HostTargetAction<Part, Part> hostTargetAction)
@@ -149,6 +180,11 @@ namespace ActiveStruts.Addons
                 module.Unlink();
             }
             Debug.Log("[AS] handled part remove in editor");
+        }
+
+        public void HandleFlightPartUndock(Part data)
+        {
+            Debug.Log("[AS] part undocked");
         }
 
         private static bool IsValidPosition(RaycastResult raycast)
@@ -195,6 +231,7 @@ namespace ActiveStruts.Addons
             GameEvents.onPartActionUIDismiss.Remove(this.ActionMenuClosed);
             GameEvents.onPartRemove.Remove(this.HandleEditorPartDetach);
             GameEvents.onPartUndock.Remove(this.HandleFlightPartUndock);
+            GameEvents.onPartAttach.Remove(this.HandleFlightPartAttach);
         }
 
         // ReSharper disable once InconsistentNaming
@@ -234,25 +271,33 @@ namespace ActiveStruts.Addons
                         activeStrut.OnUpdate();
                     }
                 }
-                if (this._targetHighlightRemoveCounter > 0)
+                var resetList = new List<HighlightedTargetPart>();
+                if (this._targetHighlightedParts != null)
                 {
-                    this._targetHighlightRemoveCounter--;
+                    resetList = this._targetHighlightedParts.Where(targetHighlightedPart => targetHighlightedPart != null && targetHighlightedPart.HasToBeRemoved).ToList();
                 }
-                else
+                foreach (var targetHighlightedPart in resetList)
                 {
-                    this._targetHighlightRemoveCounter = TargetHighlightRemoveInterval;
-                    var resetList = new List<Part>();
-                    if (this._targetHighlightedParts != null)
+                    targetHighlightedPart.Part.SetHighlightDefault();
+                    try
                     {
-                        resetList = this._targetHighlightedParts.Where(targetHighlightedPart => targetHighlightedPart != null).ToList();
+                        if (this._targetHighlightedParts != null)
+                        {
+                            _targetHighlightedParts.Remove(targetHighlightedPart);
+                        }
                     }
-                    foreach (var targetHighlightedPart in resetList)
+                    catch (NullReferenceException)
                     {
-                        targetHighlightedPart.SetHighlightDefault();
+                        //multithreading
                     }
-                    if (this._targetHighlightedParts != null)
+                }
+                if (this._targetHighlightedParts != null)
+                {
+                    foreach (var targetHighlightedPart in _targetHighlightedParts)
                     {
-                        this._targetHighlightedParts.Clear();
+                        var part = targetHighlightedPart.Part;
+                        part.SetHighlightColor(Color.cyan);
+                        part.SetHighlight(true);
                     }
                 }
                 if (Mode == AddonMode.None || CurrentTargeter == null)
@@ -400,6 +445,30 @@ namespace ActiveStruts.Addons
                 Input.ResetInputAxes();
                 InputLockManager.RemoveControlLock(Config.Instance.EditorInputLockId);
             }
+        }
+    }
+
+    public class HighlightedTargetPart
+    {
+        public Part Part { get; set; }
+        public DateTime HighlightStartTime { get; set; }
+        public Guid ModuleID { get; set; }
+
+        public bool HasToBeRemoved
+        {
+            get
+            {
+                var now = DateTime.Now;
+                var dur = (now - HighlightStartTime).TotalSeconds;
+                return dur >= Config.TargetHighlightDuration;
+            }
+        }
+
+        public HighlightedTargetPart(Part part, Guid moduleId)
+        {
+            this.Part = part;
+            this.HighlightStartTime = DateTime.Now;
+            this.ModuleID = moduleId;
         }
     }
 
