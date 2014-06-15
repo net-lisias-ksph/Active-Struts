@@ -255,7 +255,7 @@ namespace ActiveStruts.Modules
 
         private void ProcessUnDock(bool undockByUnlink = false)
         {
-            if (HighLogic.LoadedSceneIsEditor || (!this.IsLinked && !undockByUnlink) || !this.IsConnectionOrigin || this.IsTargetOnly || this.IsOwnVesselConnected || (this.IsFreeAttached ? FreeAttachPart == null : Target == null) ||
+            if (HighLogic.LoadedSceneIsEditor || (!this.IsLinked && !undockByUnlink) || !this.IsConnectionOrigin || this.IsTargetOnly || (this.IsOwnVesselConnected && !this.IsDocked) || (this.IsFreeAttached ? FreeAttachPart == null : Target == null) ||
                 !this.IsDocked)
             {
                 OSD.Warn("Can't undock.");
@@ -410,11 +410,11 @@ namespace ActiveStruts.Modules
             //    return;
             //}
             this._jointBroken = true;
-            var strength = this.LinkType.GetJointStrength();
-            var diff = breakForce - strength;
+            //var strength = this.LinkType.GetJointStrength();
+            //var diff = breakForce - strength;
             //this.DestroyJoint();
             this.PlayBreakSound();
-            OSD.Warn("Joint broken! Applied force was " + breakForce.ToString("R") + " while the joint could only take " + strength.ToString("R") + " (difference: " + diff.ToString("R") + ")", 5);
+            OSD.Warn("Joint broken!");
             //}
         }
 
@@ -750,8 +750,10 @@ namespace ActiveStruts.Modules
 
         private void Reconnect()
         {
+            Debug.Log("[AS] reconnecting");
             if (this.IsFreeAttached)
             {
+                Debug.Log("[AS] free attaching");
                 if (this.FreeAttachTarget != null)
                 {
                     var rayRes = Util.Util.PerformRaycast(this.Origin.position, this.FreeAttachTarget.PartOrigin.position, this.Origin.right);
