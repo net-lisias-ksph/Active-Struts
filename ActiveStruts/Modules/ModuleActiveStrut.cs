@@ -277,6 +277,7 @@ namespace ActiveStruts.Modules
                 this.Target.part.Undock(vi);
             }
             this.UpdateGui();
+            OSD.Success("Undocked.");
         }
 
         public void DestroyStrut()
@@ -975,7 +976,10 @@ namespace ActiveStruts.Modules
                             }
                             if (!this.IsOwnVesselConnected && !this.IsDocked)
                             {
-                                this.Events["Dock"].active = this.Events["Dock"].guiActive = true;
+                                if (!(this.IsFreeAttached ? FreeAttachPart != null && FreeAttachPart.vessel == this.vessel : Target != null && Target.part != null && Target.part.vessel == this.vessel))
+                                {
+                                    this.Events["Dock"].active = this.Events["Dock"].guiActive = true;
+                                }               
                                 this.Events["UnDock"].active = this.Events["UnDock"].guiActive = false;
                             }
                             if (!this.IsOwnVesselConnected && this.IsDocked)
@@ -1190,19 +1194,37 @@ namespace ActiveStruts.Modules
                 OSD.Warn("Can't dock.");
                 return;
             }
+            if (this.IsFreeAttached ? FreeAttachPart != null && FreeAttachPart.vessel == this.vessel : Target != null && Target.part != null && Target.part.vessel == this.vessel)
+            {
+                OSD.Warn("Already docked");
+                return;
+            }
             this.DockingVesselName = this.vessel.GetName();
             this.DockingVesselTypeString = this.vessel.vesselType.ToString();
             this.DockingVesselId = this.vessel.rootPart.flightID;
             this.IsDocked = true;
             if (this.IsFreeAttached)
             {
-                this.FreeAttachPart.Couple(this.part);
+                var freeAttachPart = this.FreeAttachPart;
+                if (freeAttachPart != null)
+                {
+                    freeAttachPart.Couple(this.part);
+                }
             }
             else
             {
-                this.Target.part.Couple(this.part);
+                var moduleActiveStrut = this.Target;
+                if (moduleActiveStrut != null)
+                {
+                    moduleActiveStrut.part.Couple(this.part);
+                }
             }
             this.UpdateGui();
+            foreach (var moduleActiveStrut in Util.Util.GetAllActiveStruts())
+            {
+                moduleActiveStrut.UpdateGui();
+            }
+            OSD.Success("Docked.");
         }
 
         [KSPEvent(name = "UnDock", active = false, guiName = "Undock from Target", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
