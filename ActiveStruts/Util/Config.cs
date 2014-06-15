@@ -18,13 +18,14 @@ namespace ActiveStruts.Util
         private const string _moduleActiveStrutFreeAttachTarget = "ModuleActiveStrutFreeAttachTarget";
         private const string ConfigFilePath = "GameData/ActiveStruts/Plugin/ActiveStruts.cfg";
         private const string SettingsNodeName = "ACTIVE_STRUTS_SETTINGS";
+        public const int IdResetCheckInterval = 120;
         private static readonly Dictionary<string, SettingsEntry> Values = new Dictionary<string, SettingsEntry>
                                                                            {
                                                                                {"MaxDistance", new SettingsEntry(15)},
                                                                                {"MaxAngle", new SettingsEntry(95)},
                                                                                {"WeakJointStrength", new SettingsEntry(1)},
-                                                                               {"NormalJointStrength", new SettingsEntry(3)},
-                                                                               {"MaximalJointStrength", new SettingsEntry(5)},
+                                                                               {"NormalJointStrength", new SettingsEntry(7)},
+                                                                               {"MaximalJointStrength", new SettingsEntry(99999)},
                                                                                {"ConnectorDimension", new SettingsEntry(0.5f)},
                                                                                {"ColorTransparency", new SettingsEntry(0.3f)},
                                                                                {"FreeAttachDistanceTolerance", new SettingsEntry(0.1f)},
@@ -33,11 +34,11 @@ namespace ActiveStruts.Util
                                                                                {"StrutRealignInterval", new SettingsEntry(5)},
                                                                                {"SoundAttachFile", new SettingsEntry("ActiveStruts/Sounds/AS_Attach")},
                                                                                {"SoundDetachFile", new SettingsEntry("ActiveStruts/Sounds/AS_Detach")},
-                                                                               {"SoundBreakFile", new SettingsEntry("ActiveStruts/Sounds/AS_Break")}
+                                                                               {"SoundBreakFile", new SettingsEntry("ActiveStruts/Sounds/AS_Break")},
+                                                                               {"GlobalJointEnforcement", new SettingsEntry(false)}
                                                                            };
 
         private static Config _instance;
-        public const int IdResetCheckInterval = 120;
 
         public float ColorTransparency
         {
@@ -71,6 +72,11 @@ namespace ActiveStruts.Util
             get { return (float) _getValue<double>("FreeAttachStrutExtension"); }
         }
 
+        public bool GlobalJointEnforcement
+        {
+            get { return _getValue<bool>("GlobalJointEnforcement"); }
+        }
+
         public static Config Instance
         {
             get { return _instance ?? (_instance = new Config()); }
@@ -96,7 +102,7 @@ namespace ActiveStruts.Util
         public float MaximalJointStrength
         {
             get { return (float) _getValue<double>("MaximalJointStrength"); }
-            }
+        }
 
         public string ModuleActiveStrutFreeAttachTarget
         {

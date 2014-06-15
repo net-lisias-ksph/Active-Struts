@@ -29,20 +29,6 @@ namespace ActiveStruts.Util
             return GetAllActiveStruts().Any(m => !m.IsTargetOnly && m.Mode == Mode.Linked && m.Target != null && m.Target == target);
         }
 
-        public static void UnlinkAllConnectedTargeters(this ModuleActiveStrut target)
-        {
-            var allTargeters = target.GetAllConnectedTargeters();
-            foreach (var moduleActiveStrut in allTargeters)
-            {
-                moduleActiveStrut.Unlink();
-            }
-        }
-
-        public static List<ModuleActiveStrut> GetAllConnectedTargeters(this ModuleActiveStrut target)
-        {
-            return GetAllActiveStruts().Where(m => !m.IsTargetOnly && m.Mode == Mode.Linked && m.Target != null && m.Target == target).ToList();
-        } 
-
         public static FreeAttachTargetCheck CheckFreeAttachPoint(this ModuleActiveStrut origin)
         {
             var raycast = PerformRaycast(origin.Origin.position, origin.FreeAttachTarget.PartOrigin.position, origin.Origin.right);
@@ -99,6 +85,11 @@ namespace ActiveStruts.Util
             }
             var partList = ListEditorParts(true);
             return partList.Where(p => p.Modules.Contains(Config.Instance.ModuleName)).Select(p => p.Modules[Config.Instance.ModuleName] as ModuleActiveStrut).ToList();
+        }
+
+        public static List<ModuleActiveStrut> GetAllConnectedTargeters(this ModuleActiveStrut target)
+        {
+            return GetAllActiveStruts().Where(m => !m.IsTargetOnly && m.Mode == Mode.Linked && m.Target != null && m.Target == target).ToList();
         }
 
         public static List<ModuleActiveStrutFreeAttachTarget> GetAllFreeAttachTargets()
@@ -276,6 +267,15 @@ namespace ActiveStruts.Util
                 moduleActiveStrut.part.SetHighlightDefault();
                 moduleActiveStrut.UpdateGui();
                 moduleActiveStrut.Targeter = moduleActiveStrut.OldTargeter;
+            }
+        }
+
+        public static void UnlinkAllConnectedTargeters(this ModuleActiveStrut target)
+        {
+            var allTargeters = target.GetAllConnectedTargeters();
+            foreach (var moduleActiveStrut in allTargeters)
+            {
+                moduleActiveStrut.Unlink();
             }
         }
     }

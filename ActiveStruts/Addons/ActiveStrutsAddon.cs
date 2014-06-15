@@ -11,47 +11,15 @@ namespace ActiveStruts.Addons
     public class ActiveStrutsAddon : MonoBehaviour
     {
         private static GameObject _connector;
+        private static object _idResetQueueLock;
+        private static int _idResetCounter;
+        private static bool _idResetTrimFlag;
         private bool _resetAllHighlighting;
         private List<HighlightedTargetPart> _targetHighlightedParts;
         public static ModuleActiveStrut CurrentTargeter { get; set; }
         public static AddonMode Mode { get; set; }
         public static Vector3 Origin { get; set; }
         private static Queue<IDResetable> _idResetQueue { get; set; }
-        private static object _idResetQueueLock;
-        private static int _idResetCounter;
-        private static bool _idResetTrimFlag;
-
-        public static void Enqueue(IDResetable module)
-        {
-            lock (_idResetQueueLock)
-            {
-                _idResetQueue.Enqueue(module);
-            }
-        }
-
-        public static IDResetable Dequeue()
-        {
-            lock (_idResetQueueLock)
-            {
-                return _idResetQueue.Dequeue();
-            }
-        }
-
-        private static bool IsQueueEmpty()
-        {
-            lock (_idResetQueueLock)
-            {
-                return _idResetQueue.Count == 0;
-            }
-        }
-
-        private static void TrimQueue()
-        {
-            lock (_idResetQueueLock)
-            {
-                _idResetQueue.TrimExcess();
-            }
-        }
 
         //must not be static
         private void ActionMenuClosed(Part data)
@@ -82,7 +50,7 @@ namespace ActiveStruts.Addons
             if (module.IsConnectionOrigin && module.Target != null)
             {
                 module.Target.part.SetHighlightDefault();
-                var part = _targetHighlightedParts.Where(p => p.ModuleID == module.ID).Select(p => p).FirstOrDefault();
+                var part = this._targetHighlightedParts.Where(p => p.ModuleID == module.ID).Select(p => p).FirstOrDefault();
                 if (part != null)
                 {
                     try
@@ -166,29 +134,19 @@ namespace ActiveStruts.Addons
             }
         }
 
-        public void HandleFlightPartAttach(GameEvents.HostTargetAction<Part, Part> hostTargetAction)
+        public static IDResetable Dequeue()
         {
-            try
+            lock (_idResetQueueLock)
             {
-                if (!FlightGlobals.ActiveVessel.isEVA)
-                {
-                    return;
-                }
-                foreach (var module in hostTargetAction.target.GetComponentsInChildren<ModuleActiveStrut>())
-                {
-                    if (module.IsTargetOnly)
-                    {
-                        module.UnlinkAllConnectedTargeters();
-                    }
-                    else
-                    {
-                        module.Unlink();
-                    }
-                }
+                return _idResetQueue.Dequeue();
             }
-            catch (NullReferenceException)
+        }
+
+        public static void Enqueue(IDResetable module)
+        {
+            lock (_idResetQueueLock)
             {
-                //thrown on launch, don't know why since FlightGlobals.ActiveVessel can't be null according to the API
+                _idResetQueue.Enqueue(module);
             }
         }
 
@@ -222,9 +180,43 @@ namespace ActiveStruts.Addons
             }
         }
 
+        public void HandleFlightPartAttach(GameEvents.HostTargetAction<Part, Part> hostTargetAction)
+        {
+            try
+            {
+                if (!FlightGlobals.ActiveVessel.isEVA)
+                {
+                    return;
+                }
+                foreach (var module in hostTargetAction.target.GetComponentsInChildren<ModuleActiveStrut>())
+                {
+                    if (module.IsTargetOnly)
+                    {
+                        module.UnlinkAllConnectedTargeters();
+                    }
+                    else
+                    {
+                        module.Unlink();
+                    }
+                }
+            }
+            catch (NullReferenceException)
+            {
+                //thrown on launch, don't know why since FlightGlobals.ActiveVessel can't be null according to the API
+            }
+        }
+
         public void HandleFlightPartUndock(Part data)
         {
             Debug.Log("[AS] part undocked");
+        }
+
+        private static bool IsQueueEmpty()
+        {
+            lock (_idResetQueueLock)
+            {
+                return _idResetQueue.Count == 0;
+            }
         }
 
         private static bool IsValidPosition(RaycastResult raycast)
@@ -280,6 +272,14 @@ namespace ActiveStruts.Addons
             OSD.Update();
         }
 
+        private static void TrimQueue()
+        {
+            lock (_idResetQueueLock)
+            {
+                _idResetQueue.TrimExcess();
+            }
+        }
+
         //public void Start()
         //{
         //    if (!(HighLogic.LoadedSceneIsEditor || HighLogic.LoadedSceneIsFlight))
@@ -327,7 +327,7 @@ namespace ActiveStruts.Addons
                     {
                         if (this._targetHighlightedParts != null)
                         {
-                            _targetHighlightedParts.Remove(targetHighlightedPart);
+                            this._targetHighlightedParts.Remove(targetHighlightedPart);
                         }
                     }
                     catch (NullReferenceException)
@@ -337,7 +337,7 @@ namespace ActiveStruts.Addons
                 }
                 if (this._targetHighlightedParts != null)
                 {
-                    foreach (var targetHighlightedPart in _targetHighlightedParts)
+                    foreach (var targetHighlightedPart in this._targetHighlightedParts)
                     {
                         var part = targetHighlightedPart.Part;
                         part.SetHighlightColor(Color.cyan);
@@ -403,38 +403,6 @@ namespace ActiveStruts.Addons
             }
         }
 
-        private static void _processIdResets()
-        {
-            if (_idResetCounter > 0)
-            {
-                _idResetCounter--;
-                return;
-            }
-            _idResetCounter = Config.IdResetCheckInterval;
-            var doneSomethingFlag = false;
-            while (!IsQueueEmpty())
-            {
-                var module = Dequeue();
-                if (module != null)
-                {
-                    module.ResetId();
-                }
-                doneSomethingFlag = true;
-            }
-            if (doneSomethingFlag)
-            {
-                OSD.Info("IDs have been updated. Bloody workaround...");
-            }
-            if (_idResetTrimFlag)
-            {
-                TrimQueue();
-            }
-            else
-            {
-                _idResetTrimFlag = true;
-            }
-        }
-
         private static bool _checkForModule(Part part)
         {
             return part.Modules.Contains(Config.Instance.ModuleName);
@@ -470,6 +438,38 @@ namespace ActiveStruts.Addons
             trans.Rotate(new Vector3(0, 0, 1), 90f);
             trans.Rotate(new Vector3(1, 0, 0), 90f);
             trans.Translate(new Vector3(0f, dist, 0f));
+        }
+
+        private static void _processIdResets()
+        {
+            if (_idResetCounter > 0)
+            {
+                _idResetCounter--;
+                return;
+            }
+            _idResetCounter = Config.IdResetCheckInterval;
+            var doneSomethingFlag = false;
+            while (!IsQueueEmpty())
+            {
+                var module = Dequeue();
+                if (module != null)
+                {
+                    module.ResetId();
+                }
+                doneSomethingFlag = true;
+            }
+            if (doneSomethingFlag)
+            {
+                OSD.Info("IDs have been updated. Bloody workaround...");
+            }
+            if (_idResetTrimFlag)
+            {
+                TrimQueue();
+            }
+            else
+            {
+                _idResetTrimFlag = true;
+            }
         }
 
         private static void _processUserInput(Vector3 mp, RaycastResult raycast, bool validPos)
@@ -526,19 +526,19 @@ namespace ActiveStruts.Addons
 
     public class HighlightedTargetPart
     {
-        public Part Part { get; set; }
-        public DateTime HighlightStartTime { get; set; }
-        public Guid ModuleID { get; set; }
-
         public bool HasToBeRemoved
         {
             get
             {
                 var now = DateTime.Now;
-                var dur = (now - HighlightStartTime).TotalSeconds;
+                var dur = (now - this.HighlightStartTime).TotalSeconds;
                 return dur >= Config.TargetHighlightDuration;
             }
         }
+
+        public DateTime HighlightStartTime { get; set; }
+        public Guid ModuleID { get; set; }
+        public Part Part { get; set; }
 
         public HighlightedTargetPart(Part part, Guid moduleId)
         {

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Linq;
 using ActiveStruts.Addons;
-using ActiveStruts.Util;
 using UnityEngine;
 
 namespace ActiveStruts.Modules
@@ -37,36 +36,6 @@ namespace ActiveStruts.Modules
             get { return this.part.rigidbody; }
         }
 
-        public override void OnStart(StartState state)
-        {
-            if (this.Id == Guid.Empty.ToString())
-            {
-                this.Id = Guid.NewGuid().ToString();
-            }
-            if (HighLogic.LoadedSceneIsEditor)
-            {
-                this.part.OnEditorAttach += this._processEditorAttach;
-            }
-            if (HighLogic.LoadedSceneIsFlight && !IdResetDone)
-            {
-                ActiveStrutsAddon.Enqueue(this);
-            }
-        }
-
-        private void _processEditorAttach()
-        {
-            var allTargets = Util.Util.GetAllFreeAttachTargets();
-            if (allTargets == null)
-            {
-                return;
-            }
-            if (allTargets.Any(t => t.ID == this.ID))
-            {
-                this.ID = Guid.NewGuid();
-            }
-        }
-
-        //[KSPEvent(name = "ResetId", active = true, guiName = "Reset ID", guiActiveEditor = true, guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
         public void ResetId()
         {
             var oldId = this.Id;
@@ -94,7 +63,38 @@ namespace ActiveStruts.Modules
             //    }
             //}
             //OSD.Info("New ID created and set. Bloody workaround...");
-            IdResetDone = true;
+            this.IdResetDone = true;
         }
+
+        public override void OnStart(StartState state)
+        {
+            if (this.Id == Guid.Empty.ToString())
+            {
+                this.Id = Guid.NewGuid().ToString();
+            }
+            if (HighLogic.LoadedSceneIsEditor)
+            {
+                this.part.OnEditorAttach += this._processEditorAttach;
+            }
+            if (HighLogic.LoadedSceneIsFlight && !this.IdResetDone)
+            {
+                ActiveStrutsAddon.Enqueue(this);
+            }
+        }
+
+        private void _processEditorAttach()
+        {
+            var allTargets = Util.Util.GetAllFreeAttachTargets();
+            if (allTargets == null)
+            {
+                return;
+            }
+            if (allTargets.Any(t => t.ID == this.ID))
+            {
+                this.ID = Guid.NewGuid();
+            }
+        }
+
+        //[KSPEvent(name = "ResetId", active = true, guiName = "Reset ID", guiActiveEditor = true, guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
     }
 }
