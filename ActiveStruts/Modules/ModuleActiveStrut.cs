@@ -921,7 +921,7 @@ namespace ActiveStruts.Modules
                     var moduleActiveStrutFreeAttachTarget = rayRes.HittedPart.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget;
                     if (moduleActiveStrutFreeAttachTarget != null)
                     {
-                        this.CreateJoint(this.part.rigidbody, moduleActiveStrutFreeAttachTarget.PartRigidbody, LinkType.Weak, (rayRes.Hit.point + this.Origin.position) / 2);
+                        this.CreateJoint(this.part.rigidbody, moduleActiveStrutFreeAttachTarget.PartRigidbody, LinkType.Weak, (rayRes.Hit.point + this.Origin.position)/2);
                     }
                 }
             }
@@ -1079,6 +1079,7 @@ namespace ActiveStruts.Modules
                         {
                             this.Events["AbortLink"].active = this.Events["AbortLink"].guiActive = false;
                             this.Events["ToggleEnforcement"].active = this.Events["ToggleEnforcement"].guiActive = true;
+                            this.Fields["IsEnforced"].guiActive = true;
                             if (this.IsFreeAttached)
                             {
                                 this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
@@ -1294,6 +1295,14 @@ namespace ActiveStruts.Modules
                                  if (r.name == "Link" && l.name == "FreeAttachStraight")
                                  {
                                      return 1;
+                                 }
+                                 if (r.name == "ToggleEnforcement")
+                                 {
+                                     return 1;
+                                 }
+                                 if (l.name == "ToggleEnforcement")
+                                 {
+                                     return -1;
                                  }
                                  return string.Compare(l.name, r.name, StringComparison.Ordinal);
                              }
