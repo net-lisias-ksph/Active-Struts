@@ -143,7 +143,7 @@ namespace ActiveStruts.Addons
                     else
                     {
                         module.Unlink();
-                    }                    
+                    }
                 }
             }
             catch (NullReferenceException)
@@ -155,6 +155,7 @@ namespace ActiveStruts.Addons
         private void HandleEditorPartDetach(GameEvents.HostTargetAction<Part, Part> hostTargetAction)
         {
             var partList = new List<Part>();
+            partList.Add(hostTargetAction.target);
             foreach (var child in hostTargetAction.target.children)
             {
                 Util.Util.RecursePartList(partList, child);
@@ -179,7 +180,6 @@ namespace ActiveStruts.Addons
             {
                 module.Unlink();
             }
-            Debug.Log("[AS] handled part remove in editor");
         }
 
         public void HandleFlightPartUndock(Part data)

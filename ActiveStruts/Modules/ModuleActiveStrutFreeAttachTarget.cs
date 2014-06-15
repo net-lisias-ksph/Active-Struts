@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using ActiveStruts.Util;
 using UnityEngine;
 
 namespace ActiveStruts.Modules
@@ -57,6 +58,38 @@ namespace ActiveStruts.Modules
             {
                 this.ID = Guid.NewGuid();
             }
+        }
+
+        [KSPEvent(name = "ResetId", active = true, guiName = "Reset ID", guiActiveEditor = true, guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
+        public void ResetId()
+        {
+
+                var oldId = this.ID.ToString();
+                this.Id = Guid.NewGuid().ToString();
+                foreach (var moduleActiveStrut in Util.Util.GetAllActiveStruts().Where(m=>m.FreeAttachTargetId!=null))
+                {
+                    if (moduleActiveStrut.FreeAttachTargetId == oldId)
+                    {
+                        moduleActiveStrut.TargetId = this.Id;
+                    }
+                }
+                //if (this.Targeter != null && this.Targeter.TargetId == oldId)
+                //{
+                //    this.Targeter.TargetId = this.Id;
+                //}
+                //if (this.Target != null && this.Target.TargeterId == oldId)
+                //{
+                //    this.Target.TargeterId = this.Id;
+                //}
+                //if (this.IsTargetOnly)
+                //{
+                //    foreach (var connectedTargeter in this.GetAllConnectedTargeters())
+                //    {
+                //        connectedTargeter.TargetId = this.Id;
+                //    }
+                //}
+                OSD.Info("New ID created and set. Bloody workaround...");
+            
         }
     }
 }

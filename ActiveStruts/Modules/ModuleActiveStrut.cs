@@ -68,6 +68,10 @@ namespace ActiveStruts.Modules
         private int _strutRealignCounter;
         private int _ticksForDelayedStart;
         private object _jointBreakLock;
+        [KSPField(isPersistant = true)] public bool IsDocked;
+        [KSPField(isPersistant = true)] public string DockingVesselName;
+        [KSPField(isPersistant = true)] public uint DockingVesselId;
+        [KSPField(isPersistant = true)] public string DockingVesselTypeString;
 
         private Part FreeAttachPart
         {
@@ -242,6 +246,36 @@ namespace ActiveStruts.Modules
             this._jointAttachNode = null;
             this._joint = null;
             this.LinkType = LinkType.None;
+            if (this.IsDocked)
+            {
+                this.ProcessUnDock(true);
+            }
+        }
+
+        private void ProcessUnDock(bool undockByUnlink = false)
+        {
+            if (HighLogic.LoadedSceneIsEditor || (!this.IsLinked && !undockByUnlink) || !this.IsConnectionOrigin || this.IsTargetOnly || this.IsOwnVesselConnected || (this.IsFreeAttached ? FreeAttachPart == null : Target == null) ||
+                !this.IsDocked)
+            {
+                OSD.Warn("Can't undock.");
+                return;
+            }
+            var vi = new DockedVesselInfo
+                     {
+                         name = this.DockingVesselName,
+                         rootPartUId = this.DockingVesselId,
+                         vesselType = (VesselType) Enum.Parse(typeof(VesselType), this.DockingVesselTypeString)
+                     };
+            this.IsDocked = false;
+            if (this.IsFreeAttached)
+            {
+                this.FreeAttachPart.Undock(vi);
+            }
+            else
+            {
+                this.Target.part.Undock(vi);
+            }
+            this.UpdateGui();
         }
 
         public void DestroyStrut()
@@ -259,6 +293,43 @@ namespace ActiveStruts.Modules
             OSD.Info(Config.Instance.FreeAttachHelpText);
             ActiveStrutsAddon.CurrentTargeter = this;
             ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
+        }
+
+        [KSPEvent(name = "ResetId", active = false, guiActiveEditor = false, guiName = "Reset ID", guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
+        public void ResetId()
+        {
+            if (!this.IsLinked && !this.IsDocked)
+            {
+                var oldId = this.ID.ToString();
+                this.Id = Guid.NewGuid().ToString();
+                foreach (var moduleActiveStrut in Util.Util.GetAllActiveStruts())
+                {
+                    if (moduleActiveStrut.TargetId != null && moduleActiveStrut.TargetId == oldId)
+                    {
+                        moduleActiveStrut.TargetId = this.Id;
+                    }
+                    if (moduleActiveStrut.TargeterId != null && moduleActiveStrut.TargeterId == oldId)
+                    {
+                        moduleActiveStrut.TargeterId = this.Id;
+                    }
+                }
+                //if (this.Targeter != null && this.Targeter.TargetId == oldId)
+                //{
+                //    this.Targeter.TargetId = this.Id;
+                //}
+                //if (this.Target != null && this.Target.TargeterId == oldId)
+                //{
+                //    this.Target.TargeterId = this.Id;
+                //}
+                //if (this.IsTargetOnly)
+                //{
+                //    foreach (var connectedTargeter in this.GetAllConnectedTargeters())
+                //    {
+                //        connectedTargeter.TargetId = this.Id;
+                //    }
+                //}
+                OSD.Info("New ID created and set. Bloody workaround...");
+            }
         }
 
         [KSPEvent(name = "FreeAttachStraight", active = false, guiName = "Straight Up FreeAttach", guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
@@ -436,7 +507,6 @@ namespace ActiveStruts.Modules
             }
             if (this.Mode == Mode.Linked)
             {
-                
                 if (HighLogic.LoadedSceneIsEditor)
                 {
                     return;
@@ -861,6 +931,18 @@ namespace ActiveStruts.Modules
         {
             if (HighLogic.LoadedSceneIsFlight)
             {
+                if (FlightGlobals.ActiveVessel.isEVA)
+                {
+                    this.Events["UnDock"].active = this.Events["UnDock"].guiActive = false;
+                    this.Events["Dock"].active = this.Events["UnDock"].guiActive = false;
+                    this.Events["Link"].active = this.Events["Link"].guiActive = false;
+                    this.Events["AbortLink"].active = this.Events["AbortLink"].guiActive = false;
+                    this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
+                    this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = false;
+                    this.Events["SetAsTarget"].active = this.Events["SetAsTarget"].guiActive = false;
+                    this.Events["FreeAttachStraight"].active = this.Events["FreeAttachStraight"].guiActive = false;
+                    return;
+                }
                 switch (this.Mode)
                 {
                     case Mode.Linked:
@@ -881,6 +963,16 @@ namespace ActiveStruts.Modules
                                 this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = true;
                                 this.Events["Unlink"].active = this.Events["Unlink"].guiActive = false;
                             }
+                            if (!this.IsOwnVesselConnected && !this.IsDocked)
+                            {
+                                this.Events["Dock"].active = this.Events["Dock"].guiActive = true;
+                                this.Events["UnDock"].active = this.Events["UnDock"].guiActive = false;
+                            }
+                            if (!this.IsOwnVesselConnected && this.IsDocked)
+                            {
+                                this.Events["Dock"].active = this.Events["Dock"].guiActive = false;
+                                this.Events["UnDock"].active = this.Events["UnDock"].guiActive = true;
+                            }
                         }
                         else
                         {
@@ -893,6 +985,8 @@ namespace ActiveStruts.Modules
                     {
                         this.Events["SetAsTarget"].active = this.Events["SetAsTarget"].guiActive = false;
                         this.Events["Unlink"].active = this.Events["Unlink"].guiActive = false;
+                        this.Events["UnDock"].active = this.Events["UnDock"].guiActive = false;
+                        this.Events["Dock"].active = this.Events["Dock"].guiActive = false;
                         if (this.IsTargetOnly)
                         {
                             this.Events["Link"].active = this.Events["Link"].guiActive = false;
@@ -915,6 +1009,8 @@ namespace ActiveStruts.Modules
                         break;
                     case Mode.Target:
                     {
+                        this.Events["UnDock"].active = this.Events["UnDock"].guiActive = false;
+                        this.Events["Dock"].active = this.Events["UnDock"].guiActive = false;
                         this.Events["SetAsTarget"].active = this.Events["SetAsTarget"].guiActive = true;
                         if (!this.IsTargetOnly)
                         {
@@ -926,6 +1022,8 @@ namespace ActiveStruts.Modules
                         break;
                     case Mode.Targeting:
                     {
+                        this.Events["UnDock"].active = this.Events["UnDock"].guiActive = false;
+                        this.Events["Dock"].active = this.Events["UnDock"].guiActive = false;
                         this.Events["Link"].active = this.Events["Link"].guiActive = false;
                         this.Events["AbortLink"].active = this.Events["AbortLink"].guiActive = true;
                         this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
@@ -938,6 +1036,8 @@ namespace ActiveStruts.Modules
             else if (HighLogic.LoadedSceneIsEditor)
             {
                 this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = this.Events["ToggleLink"].guiActiveEditor = false;
+                this.Events["UnDock"].active = this.Events["UnDock"].guiActive = this.Events["UnDock"].guiActiveEditor = false;
+                this.Events["Dock"].active = this.Events["Dock"].guiActive = this.Events["Dock"].guiActiveEditor = false;
                 switch (this.Mode)
                 {
                     case Mode.Linked:
@@ -982,8 +1082,16 @@ namespace ActiveStruts.Modules
                         this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = this.Events["FreeAttach"].guiActiveEditor = false;
                     }
                         break;
-                }
+                }               
                 this.Events["FreeAttachStraight"].active = this.Events["FreeAttachStraight"].guiActive = this.Events["FreeAttachStraight"].guiActiveEditor = this.Events["FreeAttach"].active;
+            }
+            if (!this.IsDocked && !this.IsLinked)
+            {
+                this.Events["ResetId"].active = this.Events["ResetId"].guiActive = this.Events["ResetId"].guiActiveEditor = true;
+            }
+            else
+            {
+                this.Events["ResetId"].active = this.Events["ResetId"].guiActive = this.Events["ResetId"].guiActiveEditor = false;
             }
         }
 
@@ -1058,6 +1166,35 @@ namespace ActiveStruts.Modules
                              }
                 );
             this.UpdateGui();
+        }
+
+        [KSPEvent(name = "Dock", active = false, guiName = "Dock with Target", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
+        public void Dock()
+        {
+            if (HighLogic.LoadedSceneIsEditor || !this.IsLinked || !this.IsConnectionOrigin || this.IsTargetOnly || this.IsOwnVesselConnected || (this.IsFreeAttached ? FreeAttachPart == null : Target == null) || this.IsDocked)
+            {
+                OSD.Warn("Can't dock.");
+                return;
+            }
+            this.DockingVesselName = this.vessel.GetName();
+            this.DockingVesselTypeString = this.vessel.vesselType.ToString();
+            this.DockingVesselId = this.vessel.rootPart.flightID;
+            this.IsDocked = true;
+            if (this.IsFreeAttached)
+            {
+                this.FreeAttachPart.Couple(this.part);
+            }
+            else
+            {
+                this.Target.part.Couple(this.part);
+            }
+            this.UpdateGui();
+        }
+
+        [KSPEvent(name = "UnDock", active = false, guiName = "Undock from Target", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
+        public void UnDock()
+        {
+            this.ProcessUnDock();
         }
 
         private void _manageAttachNode(float breakForce)
