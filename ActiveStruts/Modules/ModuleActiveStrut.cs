@@ -69,8 +69,7 @@ namespace ActiveStruts.Modules
         private int _ticksForDelayedStart;
         private object _jointBreakLock;
         [KSPField(isPersistant = true)] public bool IsDocked;
-        [KSPField(isPersistant = true)]
-        public bool IdResetDone = false;
+        [KSPField(isPersistant = true)] public bool IdResetDone = false;
         [KSPField(isPersistant = true)] public string DockingVesselName;
         [KSPField(isPersistant = true)] public uint DockingVesselId;
         [KSPField(isPersistant = true)] public string DockingVesselTypeString;
@@ -292,7 +291,7 @@ namespace ActiveStruts.Modules
             {
                 InputLockManager.SetControlLock(EditorLockMask, Config.Instance.EditorInputLockId);
             }
-            OSD.Info(Config.Instance.FreeAttachHelpText);
+            OSD.Info(Config.Instance.FreeAttachHelpText, 5);
             ActiveStrutsAddon.CurrentTargeter = this;
             ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
         }
@@ -302,36 +301,36 @@ namespace ActiveStruts.Modules
         {
             //if (!this.IsLinked && !this.IsDocked)
             //{
-                var oldId = this.Id;
-                this.Id = Guid.NewGuid().ToString();
-                foreach (var moduleActiveStrut in Util.Util.GetAllActiveStruts())
+            var oldId = this.Id;
+            this.Id = Guid.NewGuid().ToString();
+            foreach (var moduleActiveStrut in Util.Util.GetAllActiveStruts())
+            {
+                if (moduleActiveStrut.TargetId != null && moduleActiveStrut.TargetId == oldId)
                 {
-                    if (moduleActiveStrut.TargetId != null && moduleActiveStrut.TargetId == oldId)
-                    {
-                        moduleActiveStrut.TargetId = this.Id;
-                    }
-                    if (moduleActiveStrut.TargeterId != null && moduleActiveStrut.TargeterId == oldId)
-                    {
-                        moduleActiveStrut.TargeterId = this.Id;
-                    }
+                    moduleActiveStrut.TargetId = this.Id;
                 }
-                //if (this.Targeter != null && this.Targeter.TargetId == oldId)
-                //{
-                //    this.Targeter.TargetId = this.Id;
-                //}
-                //if (this.Target != null && this.Target.TargeterId == oldId)
-                //{
-                //    this.Target.TargeterId = this.Id;
-                //}
-                //if (this.IsTargetOnly)
-                //{
-                //    foreach (var connectedTargeter in this.GetAllConnectedTargeters())
-                //    {
-                //        connectedTargeter.TargetId = this.Id;
-                //    }
-                //}
-                //OSD.Info("New ID created and set. Bloody workaround...");
-                IdResetDone = true;
+                if (moduleActiveStrut.TargeterId != null && moduleActiveStrut.TargeterId == oldId)
+                {
+                    moduleActiveStrut.TargeterId = this.Id;
+                }
+            }
+            //if (this.Targeter != null && this.Targeter.TargetId == oldId)
+            //{
+            //    this.Targeter.TargetId = this.Id;
+            //}
+            //if (this.Target != null && this.Target.TargeterId == oldId)
+            //{
+            //    this.Target.TargeterId = this.Id;
+            //}
+            //if (this.IsTargetOnly)
+            //{
+            //    foreach (var connectedTargeter in this.GetAllConnectedTargeters())
+            //    {
+            //        connectedTargeter.TargetId = this.Id;
+            //    }
+            //}
+            //OSD.Info("New ID created and set. Bloody workaround...");
+            IdResetDone = true;
             //}
         }
 
@@ -360,7 +359,7 @@ namespace ActiveStruts.Modules
             }
         }
 
-        [KSPAction("FreeAttachStraightAction", KSPActionGroup.None, guiName = "Straight FreeAttach")]
+        [KSPAction("FreeAttachStraightAction", KSPActionGroup.None, guiName = "Straight Up FreeAttach")]
         public void FreeAttachStraightAction(KSPActionParam param)
         {
             if (this.Mode == Mode.Unlinked && !this.IsTargetOnly)
@@ -602,6 +601,14 @@ namespace ActiveStruts.Modules
                 if (target != null)
                 {
                     this.FreeAttachTarget = target;
+                    if (HighLogic.LoadedSceneIsFlight && target.vessel != null)
+                    {
+                        this.IsOwnVesselConnected = target.vessel == this.vessel;
+                    }
+                    else if (HighLogic.LoadedSceneIsEditor)
+                    {
+                        this.IsOwnVesselConnected = true;
+                    }
                 }
                 this._freeAttachPart = hittedPart;
                 this.Mode = Mode.Linked;
@@ -1085,7 +1092,7 @@ namespace ActiveStruts.Modules
                         this.Events["FreeAttach"].active = this.Events["FreeAttach"].guiActive = this.Events["FreeAttach"].guiActiveEditor = false;
                     }
                         break;
-                }               
+                }
                 this.Events["FreeAttachStraight"].active = this.Events["FreeAttachStraight"].guiActive = this.Events["FreeAttachStraight"].guiActiveEditor = this.Events["FreeAttach"].active;
             }
             //if (!this.IsDocked && !this.IsLinked)

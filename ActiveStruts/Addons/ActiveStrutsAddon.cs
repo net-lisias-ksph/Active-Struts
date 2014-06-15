@@ -160,7 +160,7 @@ namespace ActiveStruts.Addons
                 GameEvents.onPartAttach.Add(this.HandleFlightPartAttach);
                 GameEvents.onPartRemove.Add(this.HandleFlightPartAttach);
                 _idResetQueueLock = new object();
-                _idResetQueue = new Queue<IDResetable>(100);
+                _idResetQueue = new Queue<IDResetable>(200);
                 _idResetCounter = Config.IdResetCheckInterval;
                 _idResetTrimFlag = false;
             }

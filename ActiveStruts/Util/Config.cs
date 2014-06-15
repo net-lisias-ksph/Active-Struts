@@ -26,7 +26,7 @@ namespace ActiveStruts.Util
                                                                                {"NormalJointStrength", new SettingsEntry(20)},
                                                                                {"MaximalJointStrength", new SettingsEntry(100)},
                                                                                {"ConnectorDimension", new SettingsEntry(0.5f)},
-                                                                               {"ColorTransparency", new SettingsEntry(0.7f)},
+                                                                               {"ColorTransparency", new SettingsEntry(0.3f)},
                                                                                {"FreeAttachDistanceTolerance", new SettingsEntry(0.1f)},
                                                                                {"FreeAttachStrutExtension", new SettingsEntry(0.05f)},
                                                                                {"StartDelay", new SettingsEntry(60)},
