@@ -37,6 +37,7 @@ namespace ActiveStruts.Util
                                                                            };
 
         private static Config _instance;
+        public const int IdResetCheckInterval = 120;
 
         public float ColorTransparency
         {

@@ -30,7 +30,7 @@ using UnityEngine;
 
 namespace ActiveStruts.Modules
 {
-    public class ModuleActiveStrut : PartModule
+    public class ModuleActiveStrut : PartModule, IDResetable
     {
         private const ControlTypes EditorLockMask = ControlTypes.EDITOR_PAD_PICK_PLACE | ControlTypes.EDITOR_ICON_PICK;
         private readonly object _freeAttachStrutUpdateLock = new object();
@@ -69,6 +69,8 @@ namespace ActiveStruts.Modules
         private int _ticksForDelayedStart;
         private object _jointBreakLock;
         [KSPField(isPersistant = true)] public bool IsDocked;
+        [KSPField(isPersistant = true)]
+        public bool IdResetDone = false;
         [KSPField(isPersistant = true)] public string DockingVesselName;
         [KSPField(isPersistant = true)] public uint DockingVesselId;
         [KSPField(isPersistant = true)] public string DockingVesselTypeString;
@@ -295,12 +297,12 @@ namespace ActiveStruts.Modules
             ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
         }
 
-        [KSPEvent(name = "ResetId", active = false, guiActiveEditor = false, guiName = "Reset ID", guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
+        //[KSPEvent(name = "ResetId", active = false, guiActiveEditor = false, guiName = "Reset ID", guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
         public void ResetId()
         {
-            if (!this.IsLinked && !this.IsDocked)
-            {
-                var oldId = this.ID.ToString();
+            //if (!this.IsLinked && !this.IsDocked)
+            //{
+                var oldId = this.Id;
                 this.Id = Guid.NewGuid().ToString();
                 foreach (var moduleActiveStrut in Util.Util.GetAllActiveStruts())
                 {
@@ -328,8 +330,9 @@ namespace ActiveStruts.Modules
                 //        connectedTargeter.TargetId = this.Id;
                 //    }
                 //}
-                OSD.Info("New ID created and set. Bloody workaround...");
-            }
+                //OSD.Info("New ID created and set. Bloody workaround...");
+                IdResetDone = true;
+            //}
         }
 
         [KSPEvent(name = "FreeAttachStraight", active = false, guiName = "Straight Up FreeAttach", guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
@@ -342,10 +345,10 @@ namespace ActiveStruts.Modules
             {
                 var hittedPart = info.PartFromHit();
                 var valid = hittedPart != null;
-                if (HighLogic.LoadedSceneIsFlight && valid)
-                {
-                    valid = hittedPart.vessel == this.vessel;
-                }
+                //if (HighLogic.LoadedSceneIsFlight && valid)
+                //{
+                //    valid = hittedPart.vessel == this.vessel;
+                //}
                 if (valid)
                 {
                     this.PlaceFreeAttach(hittedPart, info.point);
@@ -931,7 +934,7 @@ namespace ActiveStruts.Modules
         {
             if (HighLogic.LoadedSceneIsFlight)
             {
-                if (FlightGlobals.ActiveVessel.isEVA)
+                if (this.vessel != null && this.vessel.isEVA)
                 {
                     this.Events["UnDock"].active = this.Events["UnDock"].guiActive = false;
                     this.Events["Dock"].active = this.Events["UnDock"].guiActive = false;
@@ -1085,14 +1088,14 @@ namespace ActiveStruts.Modules
                 }               
                 this.Events["FreeAttachStraight"].active = this.Events["FreeAttachStraight"].guiActive = this.Events["FreeAttachStraight"].guiActiveEditor = this.Events["FreeAttach"].active;
             }
-            if (!this.IsDocked && !this.IsLinked)
-            {
-                this.Events["ResetId"].active = this.Events["ResetId"].guiActive = this.Events["ResetId"].guiActiveEditor = true;
-            }
-            else
-            {
-                this.Events["ResetId"].active = this.Events["ResetId"].guiActive = this.Events["ResetId"].guiActiveEditor = false;
-            }
+            //if (!this.IsDocked && !this.IsLinked)
+            //{
+            //    this.Events["ResetId"].active = this.Events["ResetId"].guiActive = this.Events["ResetId"].guiActiveEditor = true;
+            //}
+            //else
+            //{
+            //    this.Events["ResetId"].active = this.Events["ResetId"].guiActive = this.Events["ResetId"].guiActiveEditor = false;
+            //}
         }
 
         private Vector3 _convertFreeAttachRayHitPointToStrutTarget()
@@ -1120,6 +1123,10 @@ namespace ActiveStruts.Modules
             if (this.Id == Guid.Empty.ToString())
             {
                 this.Id = Guid.NewGuid().ToString();
+            }
+            if (HighLogic.LoadedSceneIsFlight && !IdResetDone)
+            {
+                ActiveStrutsAddon.Enqueue(this);
             }
             if (this.IsLinked) // && !HighLogic.LoadedSceneIsEditor)
             {

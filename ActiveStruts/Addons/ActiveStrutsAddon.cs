@@ -16,6 +16,42 @@ namespace ActiveStruts.Addons
         public static ModuleActiveStrut CurrentTargeter { get; set; }
         public static AddonMode Mode { get; set; }
         public static Vector3 Origin { get; set; }
+        private static Queue<IDResetable> _idResetQueue { get; set; }
+        private static object _idResetQueueLock;
+        private static int _idResetCounter;
+        private static bool _idResetTrimFlag;
+
+        public static void Enqueue(IDResetable module)
+        {
+            lock (_idResetQueueLock)
+            {
+                _idResetQueue.Enqueue(module);
+            }
+        }
+
+        public static IDResetable Dequeue()
+        {
+            lock (_idResetQueueLock)
+            {
+                return _idResetQueue.Dequeue();
+            }
+        }
+
+        private static bool IsQueueEmpty()
+        {
+            lock (_idResetQueueLock)
+            {
+                return _idResetQueue.Count == 0;
+            }
+        }
+
+        private static void TrimQueue()
+        {
+            lock (_idResetQueueLock)
+            {
+                _idResetQueue.TrimExcess();
+            }
+        }
 
         //must not be static
         private void ActionMenuClosed(Part data)
@@ -123,6 +159,10 @@ namespace ActiveStruts.Addons
                 //GameEvents.onPartUndock.Add(this.HandleFlightPartUndock);
                 GameEvents.onPartAttach.Add(this.HandleFlightPartAttach);
                 GameEvents.onPartRemove.Add(this.HandleFlightPartAttach);
+                _idResetQueueLock = new object();
+                _idResetQueue = new Queue<IDResetable>(100);
+                _idResetCounter = Config.IdResetCheckInterval;
+                _idResetTrimFlag = false;
             }
         }
 
@@ -271,6 +311,10 @@ namespace ActiveStruts.Addons
                         activeStrut.OnUpdate();
                     }
                 }
+                if (HighLogic.LoadedSceneIsFlight)
+                {
+                    _processIdResets();
+                }
                 var resetList = new List<HighlightedTargetPart>();
                 if (this._targetHighlightedParts != null)
                 {
@@ -356,6 +400,38 @@ namespace ActiveStruts.Addons
                  * just entering the try block constantly which I consider 
                  * still to be preferred over an unhandled exception.
                  */
+            }
+        }
+
+        private static void _processIdResets()
+        {
+            if (_idResetCounter > 0)
+            {
+                _idResetCounter--;
+                return;
+            }
+            _idResetCounter = Config.IdResetCheckInterval;
+            var doneSomethingFlag = false;
+            while (!IsQueueEmpty())
+            {
+                var module = Dequeue();
+                if (module != null)
+                {
+                    module.ResetId();
+                }
+                doneSomethingFlag = true;
+            }
+            if (doneSomethingFlag)
+            {
+                OSD.Info("IDs have been updated. Bloody workaround...");
+            }
+            if (_idResetTrimFlag)
+            {
+                TrimQueue();
+            }
+            else
+            {
+                _idResetTrimFlag = true;
             }
         }
 

@@ -48,6 +48,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Addons\ActiveStrutsAddon.cs" />
+    <Compile Include="Modules\IdResetable.cs" />
     <Compile Include="Modules\ModuleActiveStrutFreeAttachTarget.cs" />
     <Compile Include="Util\Config.cs" />
     <Compile Include="Util\LinkType.cs" />

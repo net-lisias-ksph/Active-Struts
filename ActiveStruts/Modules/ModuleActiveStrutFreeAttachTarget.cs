@@ -1,13 +1,15 @@
 ﻿using System;
 using System.Linq;
+using ActiveStruts.Addons;
 using ActiveStruts.Util;
 using UnityEngine;
 
 namespace ActiveStruts.Modules
 {
-    public class ModuleActiveStrutFreeAttachTarget : PartModule
+    public class ModuleActiveStrutFreeAttachTarget : PartModule, IDResetable
     {
         [KSPField(isPersistant = true)] public string Id = Guid.Empty.ToString();
+        [KSPField(isPersistant = true)] public bool IdResetDone = false;
 
         public Guid ID
         {
@@ -45,6 +47,10 @@ namespace ActiveStruts.Modules
             {
                 this.part.OnEditorAttach += this._processEditorAttach;
             }
+            if (HighLogic.LoadedSceneIsFlight && !IdResetDone)
+            {
+                ActiveStrutsAddon.Enqueue(this);
+            }
         }
 
         private void _processEditorAttach()
@@ -60,36 +66,35 @@ namespace ActiveStruts.Modules
             }
         }
 
-        [KSPEvent(name = "ResetId", active = true, guiName = "Reset ID", guiActiveEditor = true, guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
+        //[KSPEvent(name = "ResetId", active = true, guiName = "Reset ID", guiActiveEditor = true, guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
         public void ResetId()
         {
-
-                var oldId = this.ID.ToString();
-                this.Id = Guid.NewGuid().ToString();
-                foreach (var moduleActiveStrut in Util.Util.GetAllActiveStruts().Where(m=>m.FreeAttachTargetId!=null))
+            var oldId = this.Id;
+            this.Id = Guid.NewGuid().ToString();
+            foreach (var moduleActiveStrut in Util.Util.GetAllActiveStruts().Where(m => m.FreeAttachTargetId != null))
+            {
+                if (moduleActiveStrut.FreeAttachTargetId == oldId)
                 {
-                    if (moduleActiveStrut.FreeAttachTargetId == oldId)
-                    {
-                        moduleActiveStrut.TargetId = this.Id;
-                    }
+                    moduleActiveStrut.FreeAttachTargetId = this.Id;
                 }
-                //if (this.Targeter != null && this.Targeter.TargetId == oldId)
-                //{
-                //    this.Targeter.TargetId = this.Id;
-                //}
-                //if (this.Target != null && this.Target.TargeterId == oldId)
-                //{
-                //    this.Target.TargeterId = this.Id;
-                //}
-                //if (this.IsTargetOnly)
-                //{
-                //    foreach (var connectedTargeter in this.GetAllConnectedTargeters())
-                //    {
-                //        connectedTargeter.TargetId = this.Id;
-                //    }
-                //}
-                OSD.Info("New ID created and set. Bloody workaround...");
-            
+            }
+            //if (this.Targeter != null && this.Targeter.TargetId == oldId)
+            //{
+            //    this.Targeter.TargetId = this.Id;
+            //}
+            //if (this.Target != null && this.Target.TargeterId == oldId)
+            //{
+            //    this.Target.TargeterId = this.Id;
+            //}
+            //if (this.IsTargetOnly)
+            //{
+            //    foreach (var connectedTargeter in this.GetAllConnectedTargeters())
+            //    {
+            //        connectedTargeter.TargetId = this.Id;
+            //    }
+            //}
+            //OSD.Info("New ID created and set. Bloody workaround...");
+            IdResetDone = true;
         }
     }
 }
