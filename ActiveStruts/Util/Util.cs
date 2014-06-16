@@ -31,7 +31,7 @@ namespace ActiveStruts.Util
 
         public static FreeAttachTargetCheck CheckFreeAttachPoint(this ModuleActiveStrut origin)
         {
-            var raycast = PerformRaycast(origin.Origin.position, origin.FreeAttachTarget.PartOrigin.position, origin.Origin.right);
+            var raycast = PerformRaycast(origin.Origin.position, origin.FreeAttachTarget.PartOrigin.position, origin.Origin.right*-1);
             if (raycast.HitResult)
             {
                 var distOk = raycast.DistanceFromOrigin <= Config.Instance.MaxDistance;
@@ -173,7 +173,7 @@ namespace ActiveStruts.Util
 
         public static bool IsPossibleFreeAttachTarget(this ModuleActiveStrut origin, Vector3 mousePosition)
         {
-            var raycast = PerformRaycast(origin.Origin.position, mousePosition, origin.Origin.right);
+            var raycast = PerformRaycast(origin.Origin.position, mousePosition, origin.Origin.right*-1);
             return raycast.HitResult && raycast.DistanceFromOrigin <= Config.Instance.MaxDistance && raycast.RayAngle <= Config.Instance.MaxAngle;
         }
 
@@ -181,7 +181,7 @@ namespace ActiveStruts.Util
         {
             if (possibleTarget.IsConnectionFree || (possibleTarget.Targeter != null && possibleTarget.Targeter.ID == origin.ID))
             {
-                var raycast = PerformRaycast(origin.Origin.position, possibleTarget.Origin.position, origin.Origin.right);
+                var raycast = PerformRaycast(origin.Origin.position, possibleTarget.Origin.position, origin.Origin.right*-1);
                 return raycast.HitResult && raycast.HittedPart == possibleTarget.part && raycast.DistanceFromOrigin <= Config.Instance.MaxDistance && raycast.RayAngle <= Config.Instance.MaxAngle;
             }
             return false;

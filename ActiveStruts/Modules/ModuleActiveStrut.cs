@@ -58,7 +58,11 @@ namespace ActiveStruts.Modules
         [KSPField(isPersistant = false, guiActive = true)] public string State = "n.a.";
         [KSPField(guiActive = true)] public string Strength = LinkType.None.ToString();
         public Transform Strut;
-        [KSPField(isPersistant = true)] public string StrutName = "strut";
+        public Transform Grappler;
+        public Transform Hooks;
+        [KSPField(isPersistant = false)] public string StrutName = "Strut";
+        [KSPField(isPersistant = false)] public string GrapplerName = "Grappler";
+        [KSPField(isPersistant = false)] public string HooksName = "Hooks";
         [KSPField(isPersistant = true)] public string TargetId = Guid.NewGuid().ToString();
         [KSPField(isPersistant = true)] public string TargeterId = Guid.NewGuid().ToString();
         private bool _delayedStartFlag;
@@ -66,7 +70,7 @@ namespace ActiveStruts.Modules
         private ModuleActiveStrutFreeAttachTarget _freeAttachTarget;
         private ConfigurableJoint _joint;
         private AttachNode _jointAttachNode;
-        private object _jointBreakLock;
+        //private object _jointBreakLock;
         private bool _jointBroken;
         private LinkType _linkType;
         private Mode _mode = Mode.Undefined;
@@ -74,6 +78,10 @@ namespace ActiveStruts.Modules
         private bool _soundFlag;
         private int _strutRealignCounter;
         private int _ticksForDelayedStart;
+        [KSPField(isPersistant = false)] public float StrutScaleFactor;
+        private bool _targetGrapplerVisible;
+        [KSPField(isPersistant = false)] public float GrapplerOffset;
+        private Vector3 _oldTargetPosition = Vector3.zero;
 
         private Part FreeAttachPart
         {
@@ -248,17 +256,38 @@ namespace ActiveStruts.Modules
             this.PlayAttachSound();
         }
 
-        public void CreateStrut(Vector3 target, float distancePercent = 1)
+        public void CreateStrut(Vector3 target, float distancePercent = 1, float strutOffset = 0f)
         {
             var strut = this.Strut;
             strut.LookAt(target);
+            strut.Rotate(new Vector3(0, 1, 0), 90f);
             strut.localScale = new Vector3(1, 1, 1);
-            var distance = -1*Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(target))*distancePercent;
+            var distance = (Vector3.Distance(Vector3.zero, this.Strut.InverseTransformPoint(target))*distancePercent*StrutScaleFactor) + strutOffset; //*-1
             if (this.IsFreeAttached)
             {
-                distance -= Config.Instance.FreeAttachStrutExtension;
+                distance += Config.Instance.FreeAttachStrutExtension;
             }
-            this.Strut.localScale = new Vector3(1, 1, distance);
+            this.Strut.localScale = new Vector3(distance, 1, 1);
+            //this.Grappler.position = target;
+            //this.Hooks.position = target;
+        }
+
+        private void _showTargetGrappler(bool show)
+        {
+            if (!this.IsTargetOnly)
+            {
+                return;
+            }
+            if (show && !_targetGrapplerVisible)
+            {
+                this.Grappler.Translate(new Vector3(-this.GrapplerOffset, 0, 0));
+                _targetGrapplerVisible = true;
+            }
+            else if (!show && _targetGrapplerVisible)
+            {
+                this.Grappler.Translate(new Vector3(this.GrapplerOffset, 0, 0));
+                _targetGrapplerVisible = false;
+            }
         }
 
         public void DestroyJoint()
@@ -299,6 +328,8 @@ namespace ActiveStruts.Modules
         public void DestroyStrut()
         {
             this.Strut.localScale = Vector3.zero;
+            this.ShowGrappler(false, Vector3.zero, Vector3.zero, false, Vector3.zero);
+            this.ShowHooks(false, Vector3.zero, Vector3.zero);
         }
 
         [KSPEvent(name = "Dock", active = false, guiName = "Dock with Target", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
@@ -359,7 +390,7 @@ namespace ActiveStruts.Modules
         [KSPEvent(name = "FreeAttachStraight", active = false, guiName = "Straight Up FreeAttach", guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
         public void FreeAttachStraight()
         {
-            var ray = new Ray(this.Origin.position, this.Origin.transform.right);
+            var ray = new Ray(this.Origin.position, this.Origin.transform.right*-1);
             RaycastHit info;
             var raycast = Physics.Raycast(ray, out info, Config.Instance.MaxDistance);
             if (raycast)
@@ -445,11 +476,15 @@ namespace ActiveStruts.Modules
 
         public override void OnStart(StartState state)
         {
-            this._jointBreakLock = new object();
+            //this._jointBreakLock = new object();
+            this.Grappler = this.part.FindModelTransform(this.GrapplerName);
+            DestroyImmediate(this.Grappler.collider);
             if (!this.IsTargetOnly)
             {
                 this.Strut = this.part.FindModelTransform(this.StrutName);
                 DestroyImmediate(this.Strut.collider);
+                this.Hooks = this.part.FindModelTransform(this.HooksName);
+                DestroyImmediate(this.Hooks.collider);
                 this.DestroyStrut();
             }
             if (HighLogic.LoadedSceneIsEditor)
@@ -536,16 +571,22 @@ namespace ActiveStruts.Modules
             }
             if (this.Mode == Mode.Unlinked || this.Mode == Mode.Target || this.Mode == Mode.Targeting)
             {
+                if (this.IsTargetOnly)
+                {
+                    this._showTargetGrappler(false);
+                }
                 return;
             }
             if (this.IsTargetOnly)
             {
                 if (!this.AnyTargetersConnected())
                 {
+                    this._showTargetGrappler(false);
                     this.Mode = Mode.Unlinked;
                     this.UpdateGui();
                     return;
                 }
+                this._showTargetGrappler(true);
             }
             if (this.Mode == Mode.Linked)
             {
@@ -664,7 +705,7 @@ namespace ActiveStruts.Modules
                 }
                 var targetPoint = this._convertFreeAttachRayHitPointToStrutTarget();
                 //Debug.Log("[AS] target point: " + targetPoint);
-                this.CreateStrut(targetPoint);
+                this.CreateStrut(targetPoint[0]);
                 this.Target = null;
                 this.Targeter = null;
                 OSD.Success("FreeAttach Link established!");
@@ -762,6 +803,7 @@ namespace ActiveStruts.Modules
                 this.IsLinked = false;
                 this.DestroyJoint();
                 this.DestroyStrut();
+                _oldTargetPosition = Vector3.zero;
                 this.LinkType = LinkType.None;
                 if (this.IsConnectionOrigin)
                 {
@@ -824,7 +866,7 @@ namespace ActiveStruts.Modules
                 Debug.Log("[AS] free attaching");
                 if (this.FreeAttachTarget != null)
                 {
-                    var rayRes = Util.Util.PerformRaycast(this.Origin.position, this.FreeAttachTarget.PartOrigin.position, this.Origin.right);
+                    var rayRes = Util.Util.PerformRaycast(this.Origin.position, this.FreeAttachTarget.PartOrigin.position, this.Origin.right*-1);
                     if (rayRes.HittedPart != null && rayRes.DistanceFromOrigin <= Config.Instance.MaxDistance)
                     {
                         this.PlaceFreeAttach(rayRes.HittedPart, rayRes.Hit.point, false);
@@ -915,7 +957,7 @@ namespace ActiveStruts.Modules
             }
             else
             {
-                var rayRes = Util.Util.PerformRaycast(this.Origin.position, this.FreeAttachTarget.PartOrigin.position, this.Origin.right);
+                var rayRes = Util.Util.PerformRaycast(this.Origin.position, this.FreeAttachTarget.PartOrigin.position, this.Origin.right*-1);
                 if (rayRes.HittedPart != null && rayRes.DistanceFromOrigin <= Config.Instance.MaxDistance)
                 {
                     var moduleActiveStrutFreeAttachTarget = rayRes.HittedPart.Modules[Config.Instance.ModuleActiveStrutFreeAttachTarget] as ModuleActiveStrutFreeAttachTarget;
@@ -1225,18 +1267,20 @@ namespace ActiveStruts.Modules
             //}
         }
 
-        private Vector3 _convertFreeAttachRayHitPointToStrutTarget()
+        private Vector3[] _convertFreeAttachRayHitPointToStrutTarget()
         {
             var offset = this.FreeAttachPositionOffset;
             if ((this.FreeAttachPositionOffsetVectorSetInEditor && HighLogic.LoadedSceneIsFlight) || HighLogic.LoadedSceneIsEditor)
             {
                 offset = this.FreeAttachPart.transform.rotation*offset;
             }
-            var targetPos =
+            var targetHit =
                 Util.Util.PerformRaycast(this.Origin.position,
                                          this.FreeAttachPart.transform.position +
-                                         offset, this.Origin.right).Hit.point;
-            return targetPos;
+                                         offset, this.Origin.right*-1).Hit;
+            var targetPos = targetHit.point;
+            var normalVector = targetHit.normal;
+            return new[] {targetPos, normalVector};
         }
 
         private void _delayedStart()
@@ -1324,11 +1368,12 @@ namespace ActiveStruts.Modules
                 {
                     return;
                 }
-                var normDir = (this.Origin.position - (this.IsFreeAttached ? this._convertFreeAttachRayHitPointToStrutTarget() : this.Target.Origin.position)).normalized;
+                var freeAttachedHitPoint = this.IsFreeAttached ? this._convertFreeAttachRayHitPointToStrutTarget()[0] : Vector3.zero;
+                var normDir = (this.Origin.position - (this.IsFreeAttached ? freeAttachedHitPoint : this.Target.Origin.position)).normalized;
                 //var force = (this.IsFreeAttached ? LinkType.Weak : this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximum).GetJointStrength(); // + 1;
                 this._jointAttachNode = new AttachNode {id = Guid.NewGuid().ToString(), attachedPart = targetPart};
                 this._jointAttachNode.breakingForce = this._jointAttachNode.breakingTorque = breakForce; //Mathf.Infinity;
-                this._jointAttachNode.position = targetPart.partTransform.InverseTransformPoint(this.IsFreeAttached ? this._convertFreeAttachRayHitPointToStrutTarget() : targetPart.partTransform.position);
+                this._jointAttachNode.position = targetPart.partTransform.InverseTransformPoint(this.IsFreeAttached ? freeAttachedHitPoint : targetPart.partTransform.position);
                 this._jointAttachNode.orientation = targetPart.partTransform.InverseTransformDirection(normDir);
                 this._jointAttachNode.size = 1;
                 this._jointAttachNode.ResourceXFeed = false;
@@ -1345,6 +1390,49 @@ namespace ActiveStruts.Modules
             }
         }
 
+        public void ShowHooks(bool show, Vector3 targetPos, Vector3 targetNormalVector, bool useNormalVector = false)
+        {
+            if (show && !this.IsTargetOnly)
+            {
+                this.Hooks.localScale = new Vector3(1, 1, 1);
+                this.Hooks.LookAt(targetPos);
+                this.Hooks.position = targetPos;
+                if (useNormalVector)
+                {
+                    this.Hooks.rotation = Quaternion.FromToRotation(this.Hooks.right, targetNormalVector) * this.Hooks.rotation;
+                }
+            }
+            if (!show)
+            {
+                this.Hooks.localScale = Vector3.zero;
+            }
+        }
+
+        public void ShowGrappler(bool show, Vector3 targetPos, Vector3 lookAtPoint, bool applyOffset, Vector3 targetNormalVector, bool useNormalVector = false, bool inverseOffset = false)
+        {
+            if (show && !this.IsTargetOnly)
+            {
+                this.Grappler.localScale = new Vector3(1, 1, 1);
+                this.Grappler.position = this.Origin.position;
+                this.Grappler.LookAt(lookAtPoint);
+                this.Grappler.position = targetPos;
+                this.Grappler.Rotate(new Vector3(0, 1, 0), 90f);
+                if (useNormalVector)
+                {
+                    this.Grappler.rotation = Quaternion.FromToRotation(this.Grappler.right, targetNormalVector)*this.Grappler.rotation;
+                }
+                if (applyOffset)
+                {
+                    var offset = inverseOffset ? -1*this.GrapplerOffset : GrapplerOffset;
+                    this.Grappler.Translate(new Vector3(offset, 0, 0));
+                }
+            }
+            if (!show)
+            {
+                this.Grappler.localScale = Vector3.zero;
+            }
+        }
+
         private void _realignStrut()
         {
             if (this.IsFreeAttached)
@@ -1352,8 +1440,15 @@ namespace ActiveStruts.Modules
                 lock (this._freeAttachStrutUpdateLock)
                 {
                     var targetPos = this._convertFreeAttachRayHitPointToStrutTarget();
+                    if (Vector3.Distance(targetPos[0], _oldTargetPosition) <= Config.Instance.StrutRealignDistanceTolerance)
+                    {
+                        return;
+                    }
+                    _oldTargetPosition = targetPos[0];
                     this.DestroyStrut();
-                    this.CreateStrut(targetPos);
+                    this.CreateStrut(targetPos[0]);
+                    this.ShowGrappler(true, targetPos[0], targetPos[0], false, targetPos[1], true);
+                    this.ShowHooks(true, targetPos[0], targetPos[1], true);
                 }
             }
             else if (!this.IsTargetOnly)
@@ -1362,16 +1457,27 @@ namespace ActiveStruts.Modules
                 {
                     return;
                 }
+                if (Vector3.Distance(this.Target.Origin.position, _oldTargetPosition) <= Config.Instance.StrutRealignDistanceTolerance)
+                {
+                    return;
+                }
+                _oldTargetPosition = this.Target.Origin.position;
                 this.DestroyStrut();
                 if (this.Target.IsTargetOnly)
                 {
                     this.CreateStrut(this.Target.Origin.position);
+                    this.ShowGrappler(false, Vector3.zero, Vector3.zero, false, Vector3.zero);
                 }
                 else
                 {
                     this.Target.DestroyStrut();
-                    this.CreateStrut(this.Target.Origin.position, 0.5f);
-                    this.Target.CreateStrut(this.Origin.position, 0.5f);
+                    this.CreateStrut(this.Target.Origin.position, 0.5f, -1*GrapplerOffset);
+                    this.Target.CreateStrut(this.Origin.position, 0.5f, -1*GrapplerOffset);
+                    this.ShowHooks(false, Vector3.zero, Vector3.zero);
+                    this.Target.ShowHooks(false, Vector3.zero, Vector3.zero);
+                    var grapplerTargetPos = ((this.Target.Origin.position - this.Origin.position)*0.5f) + this.Origin.position;
+                    this.ShowGrappler(true, grapplerTargetPos, Target.Origin.position, true, Vector3.zero);
+                    this.Target.ShowGrappler(true, grapplerTargetPos, this.Origin.position, true, Vector3.zero, inverseOffset: false);
                 }
             }
         }

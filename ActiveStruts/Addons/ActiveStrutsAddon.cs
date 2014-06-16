@@ -241,7 +241,7 @@ namespace ActiveStruts.Addons
                     valid = valid && !raycast.HittedPart.Modules.Contains(Config.Instance.ModuleName) && raycast.HittedPart.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget);
                     //if (valid)
                     //{
-                    //    var res = Util.Util.PerformRaycast(CurrentTargeter.Origin.position, raycast.HittedPart.transform.position, CurrentTargeter.Origin.right);
+                    //    var res = Util.Util.PerformRaycast(CurrentTargeter.Origin.position, raycast.HittedPart.transform.position, CurrentTargeter.Origin.right*-1);
                     //    valid = res.HitResult && res.HittedPart != null && res.HittedPart == raycast.HittedPart && res.DistanceFromOrigin <= Config.Instance.MaxDistance && res.RayAngle <= Config.Instance.MaxAngle;
                     //    raycast.HitResult = res.HitResult;
                     //    raycast.HittedPart = res.HittedPart;
@@ -364,7 +364,7 @@ namespace ActiveStruts.Addons
                 }
                 var mp = Util.Util.GetMouseWorldPosition();
                 _pointToMousePosition(mp);
-                var raycast = Util.Util.PerformRaycast(CurrentTargeter.Origin.position, mp, CurrentTargeter.Origin.right);
+                var raycast = Util.Util.PerformRaycast(CurrentTargeter.Origin.position, mp, CurrentTargeter.Origin.right*-1);
                 if (!raycast.HitResult)
                 {
                     var handled = false;
@@ -519,8 +519,9 @@ namespace ActiveStruts.Addons
             if (HighLogic.LoadedSceneIsEditor && handled)
             {
                 Input.ResetInputAxes();
-                InputLockManager.RemoveControlLock(Config.Instance.EditorInputLockId);
+                InputLockManager.RemoveControlLock(Config.Instance.EditorInputLockId);                
             }
+            //_connector.SetActive(false);
         }
     }
 
