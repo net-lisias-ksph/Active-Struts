@@ -519,7 +519,7 @@ namespace ActiveStruts.Addons
             if (HighLogic.LoadedSceneIsEditor && handled)
             {
                 Input.ResetInputAxes();
-                InputLockManager.RemoveControlLock(Config.Instance.EditorInputLockId);                
+                InputLockManager.RemoveControlLock(Config.Instance.EditorInputLockId);
             }
             //_connector.SetActive(false);
         }

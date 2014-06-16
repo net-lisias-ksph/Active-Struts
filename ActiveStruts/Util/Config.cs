@@ -46,11 +46,6 @@ namespace ActiveStruts.Util
             get { return (float) _getValue<double>("ColorTransparency"); }
         }
 
-        public float StrutRealignDistanceTolerance
-        {
-            get { return (float) _getValue<double>("StrutRealignDistanceTolerance"); }
-        }
-
         public float ConnectorDimension
         {
             get { return (float) _getValue<double>("ConnectorDimension"); }
@@ -145,6 +140,11 @@ namespace ActiveStruts.Util
         public int StartDelay
         {
             get { return _getValue<int>("StartDelay"); }
+        }
+
+        public float StrutRealignDistanceTolerance
+        {
+            get { return (float) _getValue<double>("StrutRealignDistanceTolerance"); }
         }
 
         public int StrutRealignInterval
