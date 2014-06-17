@@ -71,7 +71,6 @@ namespace ActiveStruts.Modules
         private ModuleActiveStrutFreeAttachTarget _freeAttachTarget;
         private ConfigurableJoint _joint;
         private AttachNode _jointAttachNode;
-        //private object _jointBreakLock;
         private bool _jointBroken;
         private LinkType _linkType;
         private Mode _mode = Mode.Undefined;
@@ -81,6 +80,38 @@ namespace ActiveStruts.Modules
         private int _strutRealignCounter;
         private bool _targetGrapplerVisible;
         private int _ticksForDelayedStart;
+        [KSPField(isPersistant = false)] public string LightsDullName = "LightsDull";
+        [KSPField(isPersistant = false)] public string LightsBrightName = "LightsBright";
+        [KSPField(isPersistant = false)] public float LightsOffset;
+        private bool _isLightOn = false;
+        public Transform LightsDull;
+        public Transform LightsBright;
+
+        private void _turnLightsOn()
+        {
+            if (_isLightOn)
+            {
+                return;
+            }
+            this.LightsBright.Translate(new Vector3(-LightsOffset, 0, 0));
+            this.LightsDull.Translate(new Vector3(LightsOffset, 0, 0));
+            this.LightsBright.localScale = new Vector3(1, 1, 1);
+            this.LightsDull.localScale = Vector3.zero;
+            _isLightOn = true;
+        }
+
+        private void _turnLightsOff()
+        {
+            if (!_isLightOn)
+            {
+                return;
+            }
+            this.LightsBright.Translate(new Vector3(LightsOffset, 0, 0));
+            this.LightsDull.Translate(new Vector3(-LightsOffset, 0, 0));
+            this.LightsDull.localScale = new Vector3(1, 1, 1);
+            this.LightsBright.localScale = Vector3.zero;
+            _isLightOn = false;
+        }
 
         private Part FreeAttachPart
         {
@@ -174,8 +205,6 @@ namespace ActiveStruts.Modules
 
         public void ResetId()
         {
-            //if (!this.IsLinked && !this.IsDocked)
-            //{
             var oldId = this.Id;
             this.Id = Guid.NewGuid().ToString();
             foreach (var moduleActiveStrut in Util.Util.GetAllActiveStruts())
@@ -189,24 +218,7 @@ namespace ActiveStruts.Modules
                     moduleActiveStrut.TargeterId = this.Id;
                 }
             }
-            //if (this.Targeter != null && this.Targeter.TargetId == oldId)
-            //{
-            //    this.Targeter.TargetId = this.Id;
-            //}
-            //if (this.Target != null && this.Target.TargeterId == oldId)
-            //{
-            //    this.Target.TargeterId = this.Id;
-            //}
-            //if (this.IsTargetOnly)
-            //{
-            //    foreach (var connectedTargeter in this.GetAllConnectedTargeters())
-            //    {
-            //        connectedTargeter.TargetId = this.Id;
-            //    }
-            //}
-            //OSD.Info("New ID created and set. Bloody workaround...");
             this.IdResetDone = true;
-            //}
         }
 
         [KSPEvent(name = "AbortLink", active = false, guiName = "Abort Link", guiActiveEditor = true, guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
@@ -251,7 +263,6 @@ namespace ActiveStruts.Modules
             {
                 this._manageAttachNode(breakForce);
             }
-            Debug.Log("[AS] created a joint with strength: " + breakForce);
             this.PlayAttachSound();
         }
 
@@ -267,8 +278,6 @@ namespace ActiveStruts.Modules
                 distance += Config.Instance.FreeAttachStrutExtension;
             }
             this.Strut.localScale = new Vector3(distance, 1, 1);
-            //this.Grappler.position = target;
-            //this.Hooks.position = target;
         }
 
         public void DestroyJoint()
@@ -467,6 +476,11 @@ namespace ActiveStruts.Modules
                 this.Hooks = this.part.FindModelTransform(this.HooksName);
                 DestroyImmediate(this.Hooks.collider);
                 this.DestroyStrut();
+                this.LightsBright = this.part.FindModelTransform(this.LightsBrightName);
+                DestroyImmediate(this.LightsBright.collider);
+                this.LightsDull = this.part.FindModelTransform(this.LightsDullName);
+                DestroyImmediate(this.LightsDull.collider);
+                this.LightsBright.localScale = Vector3.zero;
             }
             if (HighLogic.LoadedSceneIsEditor)
             {
@@ -514,6 +528,14 @@ namespace ActiveStruts.Modules
                 this._jointBroken = false;
                 this.Unlink();
                 return;
+            }
+            if (this.IsDocked)
+            {
+                this._turnLightsOn();
+            }
+            else
+            {
+                this._turnLightsOff();
             }
             if (this.IsLinked)
             {
@@ -841,10 +863,10 @@ namespace ActiveStruts.Modules
 
         private void Reconnect()
         {
-            Debug.Log("[AS] reconnecting");
+            //Debug.Log("[AS] reconnecting");
             if (this.IsFreeAttached)
             {
-                Debug.Log("[AS] free attaching");
+                //Debug.Log("[AS] free attaching");
                 if (this.FreeAttachTarget != null)
                 {
                     var rayRes = Util.Util.PerformRaycast(this.Origin.position, this.FreeAttachTarget.PartOrigin.position, this.Origin.right*-1);
@@ -1304,6 +1326,12 @@ namespace ActiveStruts.Modules
                                          offset, this.Origin.right*-1).Hit;
             var targetPos = targetHit.point;
             var normalVector = targetHit.normal;
+            var pfh = targetHit.PartFromHit();
+            if (pfh == null || pfh != this.FreeAttachPart)
+            {
+                targetPos = this.Origin.position;
+                normalVector = Vector3.zero;
+            }
             return new[] {targetPos, normalVector};
         }
 
