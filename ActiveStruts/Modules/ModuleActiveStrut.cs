@@ -233,6 +233,16 @@ namespace ActiveStruts.Modules
 
         public void CreateJoint(Rigidbody originBody, Rigidbody targetBody, LinkType type, Vector3 anchorPosition)
         {
+            if (HighLogic.LoadedSceneIsFlight && this.part != null && this.part.attachJoint != null && this.part.attachJoint.Joint != null)
+            {
+                part.attachJoint.Joint.breakForce = Mathf.Infinity;
+                part.attachJoint.Joint.breakTorque = Mathf.Infinity;
+                if (this.Target.part != null && this.Target.part.attachJoint != null && this.Target.part.attachJoint.Joint != null)
+                {
+                    this.Target.part.attachJoint.Joint.breakForce = Mathf.Infinity;
+                    this.Target.part.attachJoint.Joint.breakTorque = Mathf.Infinity;
+                }
+            }
             var breakForce = type.GetJointStrength();
             this.LinkType = type;
             if (!this.IsFreeAttached)
@@ -244,7 +254,7 @@ namespace ActiveStruts.Modules
             {
                 this.IsOwnVesselConnected = this.FreeAttachPart.vessel == this.vessel;
             }
-            if (!this.IsEnforced)
+            if (!this.IsEnforced || Config.Instance.GlobalJointWeakness)
             {
                 this._joint = originBody.gameObject.AddComponent<ConfigurableJoint>();
                 this._joint.connectedBody = targetBody;
@@ -1138,7 +1148,7 @@ namespace ActiveStruts.Modules
         public void UpdateGui()
         {
             this.Events["ToggleEnforcement"].active = this.Events["ToggleEnforcement"].guiActive = false;
-            if (HighLogic.LoadedSceneIsEditor || this.IsTargetOnly || !this.IsConnectionOrigin || !this.IsLinked)
+            if (HighLogic.LoadedSceneIsEditor || this.IsTargetOnly || !this.IsConnectionOrigin || !this.IsLinked || Config.Instance.GlobalJointWeakness)
             {
                 this.Fields["IsEnforced"].guiActive = false;
             }
@@ -1166,7 +1176,10 @@ namespace ActiveStruts.Modules
                         if (!this.IsTargetOnly)
                         {
                             this.Events["AbortLink"].active = this.Events["AbortLink"].guiActive = false;
-                            this.Events["ToggleEnforcement"].active = this.Events["ToggleEnforcement"].guiActive = true;
+                            if (this.IsConnectionOrigin && !Config.Instance.GlobalJointWeakness)
+                            {
+                                this.Events["ToggleEnforcement"].active = this.Events["ToggleEnforcement"].guiActive = true;
+                            }
                             this.Fields["IsEnforced"].guiActive = true;
                             if (this.IsFreeAttached)
                             {

@@ -36,7 +36,8 @@ namespace ActiveStruts.Util
                                                                                {"SoundDetachFile", new SettingsEntry("ActiveStruts/Sounds/AS_Detach")},
                                                                                {"SoundBreakFile", new SettingsEntry("ActiveStruts/Sounds/AS_Break")},
                                                                                {"GlobalJointEnforcement", new SettingsEntry(false)},
-                                                                               {"StrutRealignDistanceTolerance", new SettingsEntry(0.02f)}
+                                                                               {"GlobalJointWeakness", new SettingsEntry(false)},
+                                                                               {"StrutRealignDistanceTolerance", new SettingsEntry(0.05f)}
                                                                            };
 
         private static Config _instance;
@@ -44,6 +45,11 @@ namespace ActiveStruts.Util
         public float ColorTransparency
         {
             get { return (float) _getValue<double>("ColorTransparency"); }
+        }
+
+        public bool GlobalJointWeakness
+        {
+            get { return _getValue<bool>("GlobalJointWeakness"); }
         }
 
         public float ConnectorDimension
