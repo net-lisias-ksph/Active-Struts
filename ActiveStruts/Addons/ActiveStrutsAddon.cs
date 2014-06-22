@@ -236,23 +236,6 @@ namespace ActiveStruts.Addons
                     }
                 }
                     break;
-                case AddonMode.FreeAttach:
-                {
-                    valid = valid && !raycast.HittedPart.Modules.Contains(Config.Instance.ModuleName) && raycast.HittedPart.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget);
-                    //if (valid)
-                    //{
-                    //    var res = Util.Util.PerformRaycast(CurrentTargeter.Origin.position, raycast.HittedPart.transform.position, CurrentTargeter.Origin.right*-1);
-                    //    valid = res.HitResult && res.HittedPart != null && res.HittedPart == raycast.HittedPart && res.DistanceFromOrigin <= Config.Instance.MaxDistance && res.RayAngle <= Config.Instance.MaxAngle;
-                    //    raycast.HitResult = res.HitResult;
-                    //    raycast.HittedPart = res.HittedPart;
-                    //    raycast.HitCurrentVessel = res.HitCurrentVessel;
-                    //    raycast.DistanceFromOrigin = res.DistanceFromOrigin;
-                    //    raycast.RayAngle = res.RayAngle;
-                    //    raycast.Hit = res.Hit;
-                    //    raycast.Ray = res.Ray;
-                    //}
-                }
-                    break;
             }
             return valid;
         }
@@ -412,7 +395,15 @@ namespace ActiveStruts.Addons
         {
             var validPosition = IsValidPosition(raycast);
             var mr = _connector.GetComponent<MeshRenderer>();
-            mr.material.color = Util.Util.MakeColorTransparent(validPosition ? Color.green : Color.red);
+            mr.material.color =
+                Util.Util.MakeColorTransparent(validPosition
+                                                   ? (Mode == AddonMode.Link && !raycast.HittedPart.Modules.Contains(Config.Instance.ModuleName)) ||
+                                                     (Mode == AddonMode.FreeAttach &&
+                                                      (raycast.HittedPart.Modules.Contains(Config.Instance.ModuleName) ||
+                                                       !raycast.HittedPart.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget)))
+                                                         ? Color.yellow
+                                                         : Color.green
+                                                   : Color.red);
             return validPosition;
         }
 

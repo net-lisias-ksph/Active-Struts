@@ -1342,7 +1342,7 @@ namespace ActiveStruts.Modules
             var pfh = targetHit.PartFromHit();
             if (pfh == null || pfh != this.FreeAttachPart)
             {
-                targetPos = this.Origin.position;
+                targetPos = this._oldTargetPosition == Vector3.zero ? this.FreeAttachPart.transform.position : this._oldTargetPosition; //this.Origin.position;
                 normalVector = Vector3.zero;
             }
             return new[] {targetPos, normalVector};
