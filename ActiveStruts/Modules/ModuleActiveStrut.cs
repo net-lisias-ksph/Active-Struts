@@ -237,7 +237,7 @@ namespace ActiveStruts.Modules
             {
                 part.attachJoint.Joint.breakForce = Mathf.Infinity;
                 part.attachJoint.Joint.breakTorque = Mathf.Infinity;
-                if (this.Target.part != null && this.Target.part.attachJoint != null && this.Target.part.attachJoint.Joint != null)
+                if (!this.IsFreeAttached && this.Target != null && this.Target.part != null && this.Target.part.attachJoint != null && this.Target.part.attachJoint.Joint != null)
                 {
                     this.Target.part.attachJoint.Joint.breakForce = Mathf.Infinity;
                     this.Target.part.attachJoint.Joint.breakTorque = Mathf.Infinity;
@@ -247,8 +247,12 @@ namespace ActiveStruts.Modules
             this.LinkType = type;
             if (!this.IsFreeAttached)
             {
-                this.Target.LinkType = type;
-                this.IsOwnVesselConnected = this.Target.vessel == this.vessel;
+                var moduleActiveStrut = this.Target;
+                if (moduleActiveStrut != null)
+                {
+                    moduleActiveStrut.LinkType = type;
+                    this.IsOwnVesselConnected = moduleActiveStrut.vessel == this.vessel;
+                }
             }
             else
             {
@@ -714,7 +718,7 @@ namespace ActiveStruts.Modules
                 this.IsEnforced = Config.Instance.GlobalJointEnforcement;
                 if (target != null)
                 {
-                    this.CreateJoint(this.part.rigidbody, target.PartRigidbody, LinkType.Weak, (hitPosition + this.Origin.position)/2);
+                    this.CreateJoint(this.part.rigidbody, target.PartRigidbody, LinkType.Weak, hitPosition); //(hitPosition + this.Origin.position)/2);
                 }
                 var targetPoint = this._convertFreeAttachRayHitPointToStrutTarget();
                 //Debug.Log("[AS] target point: " + targetPoint);
@@ -861,6 +865,7 @@ namespace ActiveStruts.Modules
             {
                 this.IsFreeAttached = false;
             }
+            this._oldTargetPosition = Vector3.zero;
             this.FreeAttachTarget = null;
             this.Mode = Mode.Unlinked;
             this.IsLinked = false;
@@ -1344,6 +1349,14 @@ namespace ActiveStruts.Modules
             {
                 targetPos = this._oldTargetPosition == Vector3.zero ? this.FreeAttachPart.transform.position : this._oldTargetPosition; //this.Origin.position;
                 normalVector = Vector3.zero;
+            }
+            else if (this._oldTargetPosition != Vector3.zero)
+            {
+                if (Vector3.Distance(this.Origin.position, this._oldTargetPosition) > Vector3.Distance(this.Origin.position, targetPos))
+                {
+                    targetPos = this._oldTargetPosition;
+                    normalVector = Vector3.zero;
+                }
             }
             return new[] {targetPos, normalVector};
         }

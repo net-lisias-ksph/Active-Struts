@@ -37,7 +37,7 @@ namespace ActiveStruts.Util
                                                                                {"SoundBreakFile", new SettingsEntry("ActiveStruts/Sounds/AS_Break")},
                                                                                {"GlobalJointEnforcement", new SettingsEntry(false)},
                                                                                {"GlobalJointWeakness", new SettingsEntry(false)},
-                                                                               {"StrutRealignDistanceTolerance", new SettingsEntry(0.05f)}
+                                                                               {"StrutRealignDistanceTolerance", new SettingsEntry(0.02f)}
                                                                            };
 
         private static Config _instance;

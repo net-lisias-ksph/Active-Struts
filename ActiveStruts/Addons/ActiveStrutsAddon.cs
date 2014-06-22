@@ -404,6 +404,10 @@ namespace ActiveStruts.Addons
                                                          ? Color.yellow
                                                          : Color.green
                                                    : Color.red);
+            if (Mode == AddonMode.FreeAttach)
+            {
+                validPosition = validPosition && !raycast.HittedPart.Modules.Contains(Config.Instance.ModuleName) && raycast.HittedPart.Modules.Contains(Config.Instance.ModuleActiveStrutFreeAttachTarget);
+            }
             return validPosition;
         }
 
