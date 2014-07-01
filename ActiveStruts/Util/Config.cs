@@ -37,7 +37,8 @@ namespace ActiveStruts.Util
                                                                                {"SoundBreakFile", new SettingsEntry("ActiveStruts/Sounds/AS_Break")},
                                                                                {"GlobalJointEnforcement", new SettingsEntry(false)},
                                                                                {"GlobalJointWeakness", new SettingsEntry(false)},
-                                                                               {"StrutRealignDistanceTolerance", new SettingsEntry(0.02f)}
+                                                                               {"StrutRealignDistanceTolerance", new SettingsEntry(0.02f)},
+                                                                               {"EnableDocking", new SettingsEntry(false)}
                                                                            };
 
         private static Config _instance;
@@ -47,14 +48,14 @@ namespace ActiveStruts.Util
             get { return (float) _getValue<double>("ColorTransparency"); }
         }
 
-        public bool GlobalJointWeakness
-        {
-            get { return _getValue<bool>("GlobalJointWeakness"); }
-        }
-
         public float ConnectorDimension
         {
             get { return (float) _getValue<double>("ConnectorDimension"); }
+        }
+
+        public bool DockingEnabled
+        {
+            get { return _getValue<bool>("EnableDocking"); }
         }
 
         public string EditorInputLockId
@@ -82,6 +83,11 @@ namespace ActiveStruts.Util
         public bool GlobalJointEnforcement
         {
             get { return _getValue<bool>("GlobalJointEnforcement"); }
+        }
+
+        public bool GlobalJointWeakness
+        {
+            get { return _getValue<bool>("GlobalJointWeakness"); }
         }
 
         public static Config Instance
