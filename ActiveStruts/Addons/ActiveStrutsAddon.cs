@@ -59,7 +59,7 @@ namespace ActiveStruts.Addons
                     }
                     catch (NullReferenceException)
                     {
-                        //multithreading
+                        //multithreading issue orccured here, not sure if fixed
                     }
                 }
             }
@@ -89,10 +89,6 @@ namespace ActiveStruts.Addons
             }
             else if (module.Targeter != null && !module.IsConnectionOrigin)
             {
-                //if (module.IsTargetOnly)
-                //{
-                //    return;
-                //}
                 module.Targeter.part.SetHighlightColor(Color.cyan);
                 module.Targeter.part.SetHighlight(true);
                 this._targetHighlightedParts.Add(new HighlightedTargetPart(module.Targeter.part, module.ID));
@@ -123,8 +119,6 @@ namespace ActiveStruts.Addons
             }
             else if (HighLogic.LoadedSceneIsFlight)
             {
-                //GameEvents.onVesselWasModified.Add(_handleFlightVesselChange);
-                //GameEvents.onPartUndock.Add(this.HandleFlightPartUndock);
                 GameEvents.onPartAttach.Add(this.HandleFlightPartAttach);
                 GameEvents.onPartRemove.Add(this.HandleFlightPartAttach);
                 _idResetQueueLock = new object();
@@ -152,8 +146,7 @@ namespace ActiveStruts.Addons
 
         private void HandleEditorPartDetach(GameEvents.HostTargetAction<Part, Part> hostTargetAction)
         {
-            var partList = new List<Part>();
-            partList.Add(hostTargetAction.target);
+            var partList = new List<Part> {hostTargetAction.target};
             foreach (var child in hostTargetAction.target.children)
             {
                 Util.Util.RecursePartList(partList, child);
@@ -202,7 +195,7 @@ namespace ActiveStruts.Addons
             }
             catch (NullReferenceException)
             {
-                //thrown on launch, don't know why since FlightGlobals.ActiveVessel can't be null according to the API
+                //thrown on launch, don't know why
             }
         }
 
@@ -263,22 +256,6 @@ namespace ActiveStruts.Addons
             }
         }
 
-        //public void Start()
-        //{
-        //    if (!(HighLogic.LoadedSceneIsEditor || HighLogic.LoadedSceneIsFlight))
-        //    {
-        //        return;
-        //    }
-        //    //_connector = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        //    //_connector.name = "ASConn";
-        //    //DestroyImmediate(_connector.collider);
-        //    //_connector.transform.localScale = new Vector3(Config.Instance.ConnectorDimension, Config.Instance.ConnectorDimension, Config.Instance.ConnectorDimension);
-        //    //var mr = _connector.GetComponent<MeshRenderer>();
-        //    //mr.name = "ASConn";
-        //    //mr.material = new Material(Shader.Find("Transparent/Diffuse")) {color = Util.Util.MakeColorTransparent(Color.green)};
-        //    //_connector.SetActive(false);
-        //}
-
         public void Update()
         {
             try
@@ -315,7 +292,7 @@ namespace ActiveStruts.Addons
                     }
                     catch (NullReferenceException)
                     {
-                        //multithreading
+                        //multithreading issue occured here, don't know if fixed
                     }
                 }
                 if (this._targetHighlightedParts != null)
@@ -380,7 +357,7 @@ namespace ActiveStruts.Addons
                  * For no apparent reason an exception is thrown on first load.
                  * I found no way to circumvent this.
                  * Since the exception has to be handled only once we are 
-                 * just entering the try block constantly which I consider 
+                 * "just" entering the try block constantly which I consider 
                  * still to be preferred over an unhandled exception.
                  */
             }
@@ -516,7 +493,6 @@ namespace ActiveStruts.Addons
                 Input.ResetInputAxes();
                 InputLockManager.RemoveControlLock(Config.Instance.EditorInputLockId);
             }
-            //_connector.SetActive(false);
         }
     }
 

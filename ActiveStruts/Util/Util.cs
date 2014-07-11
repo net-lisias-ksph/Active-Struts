@@ -67,11 +67,6 @@ namespace ActiveStruts.Util
             return GetAllFreeAttachTargets().Find(m => m.ID == guid);
         }
 
-        public static Vector3 FlipYAndZ(this Vector3 origin)
-        {
-            return new Vector3(origin.x, origin.z, origin.y);
-        }
-
         public static List<ModuleActiveStrut> GetAllActiveStruts()
         {
             if (HighLogic.LoadedSceneIsFlight)

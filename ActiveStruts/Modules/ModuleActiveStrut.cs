@@ -54,6 +54,11 @@ namespace ActiveStruts.Modules
         [KSPField(isPersistant = true)] public bool IsLinked = false;
         [KSPField(isPersistant = true)] public bool IsOwnVesselConnected = false;
         [KSPField(isPersistant = true)] public bool IsTargetOnly = false;
+        public Transform LightsBright;
+        [KSPField(isPersistant = false)] public string LightsBrightName = "LightsBright";
+        public Transform LightsDull;
+        [KSPField(isPersistant = false)] public string LightsDullName = "LightsDull";
+        [KSPField(isPersistant = false)] public float LightsOffset;
         public ModuleActiveStrut OldTargeter;
         public Transform Origin;
         public FXGroup SoundAttach;
@@ -64,9 +69,11 @@ namespace ActiveStruts.Modules
         public Transform Strut;
         [KSPField(isPersistant = false)] public string StrutName = "Strut";
         [KSPField(isPersistant = false)] public float StrutScaleFactor;
-        [KSPField(isPersistant = true)] public string TargetId = Guid.NewGuid().ToString();
-        [KSPField(isPersistant = true)] public string TargeterId = Guid.NewGuid().ToString();
+        [KSPField(isPersistant = true)] public string TargetId = Guid.Empty.ToString();
+        [KSPField(isPersistant = true)] public string TargeterId = Guid.Empty.ToString();
+        private bool _brightLightsExtended;
         private bool _delayedStartFlag;
+        private bool _dullLightsExtended = true;
         private Part _freeAttachPart;
         private ModuleActiveStrutFreeAttachTarget _freeAttachTarget;
         private ConfigurableJoint _joint;
@@ -80,38 +87,6 @@ namespace ActiveStruts.Modules
         private int _strutRealignCounter;
         private bool _targetGrapplerVisible;
         private int _ticksForDelayedStart;
-        [KSPField(isPersistant = false)] public string LightsDullName = "LightsDull";
-        [KSPField(isPersistant = false)] public string LightsBrightName = "LightsBright";
-        [KSPField(isPersistant = false)] public float LightsOffset;
-        private bool _isLightOn = false;
-        public Transform LightsDull;
-        public Transform LightsBright;
-
-        private void _turnLightsOn()
-        {
-            if (_isLightOn)
-            {
-                return;
-            }
-            this.LightsBright.Translate(new Vector3(-LightsOffset, 0, 0));
-            this.LightsDull.Translate(new Vector3(LightsOffset, 0, 0));
-            this.LightsBright.localScale = new Vector3(1, 1, 1);
-            this.LightsDull.localScale = Vector3.zero;
-            _isLightOn = true;
-        }
-
-        private void _turnLightsOff()
-        {
-            if (!_isLightOn)
-            {
-                return;
-            }
-            this.LightsBright.Translate(new Vector3(LightsOffset, 0, 0));
-            this.LightsDull.Translate(new Vector3(-LightsOffset, 0, 0));
-            this.LightsDull.localScale = new Vector3(1, 1, 1);
-            this.LightsBright.localScale = Vector3.zero;
-            _isLightOn = false;
-        }
 
         private Part FreeAttachPart
         {
@@ -235,8 +210,8 @@ namespace ActiveStruts.Modules
         {
             if (HighLogic.LoadedSceneIsFlight && this.part != null && this.part.attachJoint != null && this.part.attachJoint.Joint != null)
             {
-                part.attachJoint.Joint.breakForce = Mathf.Infinity;
-                part.attachJoint.Joint.breakTorque = Mathf.Infinity;
+                this.part.attachJoint.Joint.breakForce = Mathf.Infinity;
+                this.part.attachJoint.Joint.breakTorque = Mathf.Infinity;
                 if (!this.IsFreeAttached && this.Target != null && this.Target.part != null && this.Target.part.attachJoint != null && this.Target.part.attachJoint.Joint != null)
                 {
                     this.Target.part.attachJoint.Joint.breakForce = Mathf.Infinity;
@@ -292,6 +267,7 @@ namespace ActiveStruts.Modules
                 distance += Config.Instance.FreeAttachStrutExtension;
             }
             this.Strut.localScale = new Vector3(distance, 1, 1);
+            this._transformLights(true, target, this.IsDocked);
         }
 
         public void DestroyJoint()
@@ -308,15 +284,7 @@ namespace ActiveStruts.Modules
             }
             catch (Exception)
             {
-                //try
-                //{
-                //    Destroy(this._joint);
-                //    Destroy(this._partJoint);
-                //}
-                //catch (Exception)
-                //{
-                //    //nothing to destroy
-                //}
+                //ahem...
             }
             DestroyImmediate(this._joint);
             this._partJoint = null;
@@ -334,6 +302,7 @@ namespace ActiveStruts.Modules
             this.Strut.localScale = Vector3.zero;
             this.ShowGrappler(false, Vector3.zero, Vector3.zero, false, Vector3.zero);
             this.ShowHooks(false, Vector3.zero, Vector3.zero);
+            this._transformLights(false, Vector3.zero);
         }
 
         [KSPEvent(name = "Dock", active = false, guiName = "Dock with Target", guiActiveEditor = false, guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
@@ -389,8 +358,6 @@ namespace ActiveStruts.Modules
             ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
         }
 
-        //[KSPEvent(name = "ResetId", active = false, guiActiveEditor = false, guiName = "Reset ID", guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
-
         [KSPEvent(name = "FreeAttachStraight", active = false, guiName = "Straight Up FreeAttach", guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
         public void FreeAttachStraight()
         {
@@ -401,10 +368,6 @@ namespace ActiveStruts.Modules
             {
                 var hittedPart = info.PartFromHit();
                 var valid = hittedPart != null;
-                //if (HighLogic.LoadedSceneIsFlight && valid)
-                //{
-                //    valid = hittedPart.vessel == this.vessel;
-                //}
                 if (valid)
                 {
                     this.PlaceFreeAttach(hittedPart, info.point);
@@ -446,8 +409,6 @@ namespace ActiveStruts.Modules
 
         public void OnJointBreak(float breakForce)
         {
-            //Destroy(this._partJoint);
-            //Destroy(this._joint);
             try
             {
                 this._partJoint.DestroyJoint();
@@ -458,49 +419,31 @@ namespace ActiveStruts.Modules
             {
                 //already destroyed
             }
-            //lock (_jointBreakLock)
-            //{
-            //this.Unlink();
-            //if (this._jointBroken)
-            //{
-            //    return;
-            //}
             this._jointBroken = true;
-            //var strength = this.LinkType.GetJointStrength();
-            //var diff = breakForce - strength;
-            //this.DestroyJoint();
             this.PlayBreakSound();
             OSD.Warn("Joint broken!");
-            //}
         }
-
-        //public override void OnFixedUpdate()
-        //{
-        //}
 
         public override void OnStart(StartState state)
         {
-            //this._jointBreakLock = new object();
             this.Grappler = this.part.FindModelTransform(this.GrapplerName);
             DestroyImmediate(this.Grappler.collider);
             if (!this.IsTargetOnly)
             {
+                this.LightsOffset *= 0.5f;
                 this.Strut = this.part.FindModelTransform(this.StrutName);
                 DestroyImmediate(this.Strut.collider);
                 this.Hooks = this.part.FindModelTransform(this.HooksName);
                 DestroyImmediate(this.Hooks.collider);
-                this.DestroyStrut();
                 this.LightsBright = this.part.FindModelTransform(this.LightsBrightName);
                 DestroyImmediate(this.LightsBright.collider);
                 this.LightsDull = this.part.FindModelTransform(this.LightsDullName);
                 DestroyImmediate(this.LightsDull.collider);
-                this.LightsBright.localScale = Vector3.zero;
+                this.DestroyStrut();
             }
             if (HighLogic.LoadedSceneIsEditor)
             {
                 this.part.OnEditorAttach += this.ProcessOnPartCopy;
-                //this.part.OnEditorDetach += this.HandleEditorDetach;
-                //Debug.Log("[AS] registered editor events");
             }
             this.Origin = this.part.transform;
             this._delayedStartFlag = true;
@@ -516,19 +459,12 @@ namespace ActiveStruts.Modules
             }
             else
             {
-                SetupFXGroup(this.SoundAttach, this.gameObject, Config.Instance.SoundAttachFileUrl);
-                SetupFXGroup(this.SoundDetach, this.gameObject, Config.Instance.SoundDetachFileUrl);
-                SetupFXGroup(this.SoundBreak, this.gameObject, Config.Instance.SoundBreakFileUrl);
+                SetupFxGroup(this.SoundAttach, this.gameObject, Config.Instance.SoundAttachFileUrl);
+                SetupFxGroup(this.SoundDetach, this.gameObject, Config.Instance.SoundDetachFileUrl);
+                SetupFxGroup(this.SoundBreak, this.gameObject, Config.Instance.SoundBreakFileUrl);
                 this._soundFlag = true;
             }
         }
-
-        //public void HandleEditorDetach()
-        //{
-        //    Debug.Log("[AS] I have been detached");
-        //}
-
-        // ReSharper disable once InconsistentNaming
 
         public override void OnUpdate()
         {
@@ -542,14 +478,6 @@ namespace ActiveStruts.Modules
                 this._jointBroken = false;
                 this.Unlink();
                 return;
-            }
-            if (this.IsDocked)
-            {
-                this._turnLightsOn();
-            }
-            else
-            {
-                this._turnLightsOff();
             }
             if (this.IsLinked)
             {
@@ -579,7 +507,6 @@ namespace ActiveStruts.Modules
                             this.LinkType = this.IsTargetOnly ? LinkType.Normal : LinkType.Maximum;
                         }
                     }
-                    //this.LinkType = this.IsFreeAttached ? LinkType.Weak : this.IsConnectionOrigin ? this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximum : this.IsTargetOnly ? LinkType.Normal : LinkType.Maximum;
                 }
             }
             else
@@ -613,7 +540,6 @@ namespace ActiveStruts.Modules
                 }
                 if (this.IsOwnVesselConnected)
                 {
-                    //Debug.Log("[AS] unlink if not currvessel");
                     if (this.IsFreeAttached)
                     {
                         if (this.FreeAttachPart != null)
@@ -644,36 +570,6 @@ namespace ActiveStruts.Modules
                     }
                     this.UpdateGui();
                 }
-                //TODO decouple and staging handling
-                //_manageAttachNode();
-                //if (this.IsFreeAttached)
-                //{
-                //    if (this.FreeAttachPart != null && (HighLogic.LoadedSceneIsEditor || this.FreeAttachPart.vessel == this.vessel))
-                //    {
-                //        return;
-                //    }
-                //    this.Unlink();
-                //    return;
-                //}
-                //if (this.IsConnectionOrigin)
-                //{
-                //    if (this.Target != null && (HighLogic.LoadedSceneIsEditor || this.Target.vessel == this.vessel))
-                //    {
-                //        return;
-                //    }
-                //    this.DestroyJoint();
-                //    this.DestroyStrut();
-                //    this.Mode = Mode.Unlinked;
-                //}
-                //else
-                //{
-                //    if (this.Targeter != null && (HighLogic.LoadedSceneIsEditor || this.Targeter.vessel == this.vessel))
-                //    {
-                //        return;
-                //    }
-                //    this.DestroyStrut();
-                //    this.Mode = Mode.Unlinked;
-                //}                
             }
         }
 
@@ -718,10 +614,9 @@ namespace ActiveStruts.Modules
                 this.IsEnforced = Config.Instance.GlobalJointEnforcement;
                 if (target != null)
                 {
-                    this.CreateJoint(this.part.rigidbody, target.PartRigidbody, LinkType.Weak, hitPosition); //(hitPosition + this.Origin.position)/2);
+                    this.CreateJoint(this.part.rigidbody, target.PartRigidbody, LinkType.Weak, hitPosition);
                 }
                 var targetPoint = this._convertFreeAttachRayHitPointToStrutTarget();
-                //Debug.Log("[AS] target point: " + targetPoint);
                 this.CreateStrut(targetPoint[0]);
                 this.Target = null;
                 this.Targeter = null;
@@ -774,7 +669,7 @@ namespace ActiveStruts.Modules
                 (this.IsFreeAttached ? this.FreeAttachPart == null : this.Target == null) ||
                 !this.IsDocked)
             {
-                OSD.Warn("Can't undock.");
+                OSD.Warn("Can't undock");
                 return;
             }
             var vi = new DockedVesselInfo
@@ -793,7 +688,7 @@ namespace ActiveStruts.Modules
                 this.Target.part.Undock(vi);
             }
             this.UpdateGui();
-            OSD.Success("Undocked.");
+            OSD.Success("Undocked");
         }
 
         public void ProcessUnlink(bool secondary = false)
@@ -836,7 +731,6 @@ namespace ActiveStruts.Modules
                                     this.Target.Targeter = null;
                                     this.Target = null;
                                 }
-                                //this.Target.UpdateGui();
                             }
                             catch (NullReferenceException)
                             {
@@ -878,10 +772,8 @@ namespace ActiveStruts.Modules
 
         private void Reconnect()
         {
-            //Debug.Log("[AS] reconnecting");
             if (this.IsFreeAttached)
             {
-                //Debug.Log("[AS] free attaching");
                 if (this.FreeAttachTarget != null)
                 {
                     var rayRes = Util.Util.PerformRaycast(this.Origin.position, this.FreeAttachTarget.PartOrigin.position, this.Origin.right*-1);
@@ -901,7 +793,6 @@ namespace ActiveStruts.Modules
             }
             if (this.IsConnectionOrigin)
             {
-                //Debug.Log("[AS] reconnecting targeter");
                 if (this.Target != null && this.IsPossibleTarget(this.Target))
                 {
                     if (!this.Target.IsTargetOnly)
@@ -918,7 +809,6 @@ namespace ActiveStruts.Modules
                     this.Mode = Mode.Linked;
                     this.Target.Mode = Mode.Linked;
                     this.IsLinked = true;
-                    //Debug.Log("[AS] reconnected targeter");
                 }
             }
             else
@@ -999,7 +889,7 @@ namespace ActiveStruts.Modules
             this.Mode = Mode.Target;
         }
 
-        private static void SetupFXGroup(FXGroup group, GameObject gameObject, string audioFileUrl)
+        private static void SetupFxGroup(FXGroup group, GameObject gameObject, string audioFileUrl)
         {
             group.audio = gameObject.AddComponent<AudioSource>();
             group.audio.clip = GameDatabase.Instance.GetAudioClip(audioFileUrl);
@@ -1198,7 +1088,8 @@ namespace ActiveStruts.Modules
                             }
                             if (!this.IsOwnVesselConnected && !this.IsDocked)
                             {
-                                if (!(this.IsFreeAttached ? this.FreeAttachPart != null && this.FreeAttachPart.vessel == this.vessel : this.Target != null && this.Target.part != null && this.Target.part.vessel == this.vessel))
+                                if (Config.Instance.DockingEnabled &&
+                                    !(this.IsFreeAttached ? this.FreeAttachPart != null && this.FreeAttachPart.vessel == this.vessel : this.Target != null && this.Target.part != null && this.Target.part.vessel == this.vessel))
                                 {
                                     this.Events["Dock"].active = this.Events["Dock"].guiActive = true;
                                 }
@@ -1246,7 +1137,7 @@ namespace ActiveStruts.Modules
                     case Mode.Target:
                     {
                         this.Events["UnDock"].active = this.Events["UnDock"].guiActive = false;
-                        this.Events["Dock"].active = this.Events["UnDock"].guiActive = false;
+                        this.Events["Dock"].active = this.Events["Dock"].guiActive = false;
                         this.Events["SetAsTarget"].active = this.Events["SetAsTarget"].guiActive = true;
                         if (!this.IsTargetOnly)
                         {
@@ -1259,7 +1150,7 @@ namespace ActiveStruts.Modules
                     case Mode.Targeting:
                     {
                         this.Events["UnDock"].active = this.Events["UnDock"].guiActive = false;
-                        this.Events["Dock"].active = this.Events["UnDock"].guiActive = false;
+                        this.Events["Dock"].active = this.Events["Dock"].guiActive = false;
                         this.Events["Link"].active = this.Events["Link"].guiActive = false;
                         this.Events["AbortLink"].active = this.Events["AbortLink"].guiActive = true;
                         this.Events["ToggleLink"].active = this.Events["ToggleLink"].guiActive = false;
@@ -1321,14 +1212,6 @@ namespace ActiveStruts.Modules
                 }
                 this.Events["FreeAttachStraight"].active = this.Events["FreeAttachStraight"].guiActive = this.Events["FreeAttachStraight"].guiActiveEditor = this.Events["FreeAttach"].active;
             }
-            //if (!this.IsDocked && !this.IsLinked)
-            //{
-            //    this.Events["ResetId"].active = this.Events["ResetId"].guiActive = this.Events["ResetId"].guiActiveEditor = true;
-            //}
-            //else
-            //{
-            //    this.Events["ResetId"].active = this.Events["ResetId"].guiActive = this.Events["ResetId"].guiActiveEditor = false;
-            //}
         }
 
         private Vector3[] _convertFreeAttachRayHitPointToStrutTarget()
@@ -1377,7 +1260,7 @@ namespace ActiveStruts.Modules
             {
                 ActiveStrutsAddon.Enqueue(this);
             }
-            if (this.IsLinked) // && !HighLogic.LoadedSceneIsEditor)
+            if (this.IsLinked)
             {
                 if (this.IsTargetOnly)
                 {
@@ -1440,7 +1323,6 @@ namespace ActiveStruts.Modules
             }
             try
             {
-                //Debug.Log("[AS] trying to create partJoint");
                 var targetPart = this.IsFreeAttached ? this.FreeAttachPart : this.Target.part;
                 if (targetPart == null)
                 {
@@ -1448,9 +1330,8 @@ namespace ActiveStruts.Modules
                 }
                 var freeAttachedHitPoint = this.IsFreeAttached ? this._convertFreeAttachRayHitPointToStrutTarget()[0] : Vector3.zero;
                 var normDir = (this.Origin.position - (this.IsFreeAttached ? freeAttachedHitPoint : this.Target.Origin.position)).normalized;
-                //var force = (this.IsFreeAttached ? LinkType.Weak : this.Target.IsTargetOnly ? LinkType.Normal : LinkType.Maximum).GetJointStrength(); // + 1;
                 this._jointAttachNode = new AttachNode {id = Guid.NewGuid().ToString(), attachedPart = targetPart};
-                this._jointAttachNode.breakingForce = this._jointAttachNode.breakingTorque = breakForce; //Mathf.Infinity;
+                this._jointAttachNode.breakingForce = this._jointAttachNode.breakingTorque = breakForce;
                 this._jointAttachNode.position = targetPart.partTransform.InverseTransformPoint(this.IsFreeAttached ? freeAttachedHitPoint : targetPart.partTransform.position);
                 this._jointAttachNode.orientation = targetPart.partTransform.InverseTransformDirection(normDir);
                 this._jointAttachNode.size = 1;
@@ -1459,7 +1340,6 @@ namespace ActiveStruts.Modules
                 this.part.attachNodes.Add(this._jointAttachNode);
                 this._jointAttachNode.owner = this.part;
                 this._partJoint = PartJoint.Create(this.part, this.IsFreeAttached ? targetPart : (targetPart.parent ?? targetPart), this._jointAttachNode, null, AttachModes.SRF_ATTACH);
-                //Debug.Log("[AS] part joint created");
             }
             catch (Exception e)
             {
@@ -1533,6 +1413,59 @@ namespace ActiveStruts.Modules
                 this.Grappler.Translate(new Vector3(this.GrapplerOffset, 0, 0));
                 this._targetGrapplerVisible = false;
             }
+        }
+
+        private void _transformLights(bool show, Vector3 lookAtTarget, bool bright = false)
+        {
+            if (!show)
+            {
+                this.LightsBright.localScale = Vector3.zero;
+                this.LightsDull.localScale = Vector3.zero;
+                if (this._dullLightsExtended)
+                {
+                    this.LightsDull.Translate(new Vector3(this.LightsOffset, 0, 0));
+                    _dullLightsExtended = false;
+                }
+                if (this._brightLightsExtended)
+                {
+                    this.LightsBright.Translate(new Vector3(this.LightsOffset, 0, 0));
+                    _brightLightsExtended = false;
+                }
+                return;
+            }
+            if (bright)
+            {
+                this.LightsDull.localScale = Vector3.zero;
+                this.LightsBright.LookAt(lookAtTarget);
+                this.LightsBright.Rotate(new Vector3(0, 1, 0), 90f);
+                this.LightsBright.localScale = new Vector3(1, 1, 1);
+                if (!this._brightLightsExtended)
+                {
+                    this.LightsBright.Translate(new Vector3(-this.LightsOffset, 0, 0));
+                }
+                if (this._dullLightsExtended)
+                {
+                    this.LightsDull.Translate(new Vector3(this.LightsOffset, 0, 0));
+                }
+                this._dullLightsExtended = false;
+                this._brightLightsExtended = true;
+                return;
+            }
+            this.LightsBright.localScale = Vector3.zero;
+            this.LightsDull.LookAt(lookAtTarget);
+            this.LightsDull.Rotate(new Vector3(0, 1, 0), 90f);
+            this.LightsDull.position = this.Origin.position;
+            this.LightsDull.localScale = new Vector3(1, 1, 1);
+            if (!this._dullLightsExtended)
+            {
+                this.LightsDull.Translate(new Vector3(-this.LightsOffset, 0, 0));
+            }
+            if (this._brightLightsExtended)
+            {
+                this.LightsBright.Translate(new Vector3(this.LightsOffset, 0, 0));
+            }
+            this._dullLightsExtended = true;
+            this._brightLightsExtended = false;
         }
     }
 }
