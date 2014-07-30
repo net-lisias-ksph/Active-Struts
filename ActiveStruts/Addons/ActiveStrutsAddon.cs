@@ -242,11 +242,11 @@ namespace ActiveStruts.Addons
             GameEvents.onPartAttach.Remove(this.HandleFlightPartAttach);
         }
 
-        // ReSharper disable once InconsistentNaming
-        public void OnGUI()
-        {
-            OSD.Update();
-        }
+        //// ReSharper disable once InconsistentNaming
+        //public void OnGUI()
+        //{
+        //    OSD.Update();
+        //}
 
         private static void TrimQueue()
         {
@@ -432,7 +432,7 @@ namespace ActiveStruts.Addons
             }
             if (doneSomethingFlag)
             {
-                OSD.Info("IDs have been updated. Bloody workaround...");
+                OSD.PostMessage("IDs have been updated. Bloody workaround...");
             }
             if (_idResetTrimFlag)
             {

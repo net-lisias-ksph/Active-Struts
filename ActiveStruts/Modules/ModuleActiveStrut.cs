@@ -202,7 +202,7 @@ namespace ActiveStruts.Modules
             this.Mode = Mode.Unlinked;
             Util.Util.ResetAllFromTargeting();
             ActiveStrutsAddon.Mode = AddonMode.None;
-            OSD.Info("Link aborted.");
+            OSD.PostMessage("Link aborted.");
             this.UpdateGui();
         }
 
@@ -310,12 +310,12 @@ namespace ActiveStruts.Modules
         {
             if (HighLogic.LoadedSceneIsEditor || !this.IsLinked || !this.IsConnectionOrigin || this.IsTargetOnly || this.IsOwnVesselConnected || (this.IsFreeAttached ? this.FreeAttachPart == null : this.Target == null) || this.IsDocked)
             {
-                OSD.Warn("Can't dock.");
+                OSD.PostMessage("Can't dock.");
                 return;
             }
             if (this.IsFreeAttached ? this.FreeAttachPart != null && this.FreeAttachPart.vessel == this.vessel : this.Target != null && this.Target.part != null && this.Target.part.vessel == this.vessel)
             {
-                OSD.Warn("Already docked");
+                OSD.PostMessage("Already docked");
                 return;
             }
             this.DockingVesselName = this.vessel.GetName();
@@ -343,7 +343,7 @@ namespace ActiveStruts.Modules
             {
                 moduleActiveStrut.UpdateGui();
             }
-            OSD.Success("Docked.");
+            OSD.PostMessage("Docked.");
         }
 
         [KSPEvent(name = "FreeAttach", active = false, guiActiveEditor = false, guiName = "FreeAttach Link", guiActiveUnfocused = true, unfocusedRange = Config.UnfocusedRange)]
@@ -353,7 +353,7 @@ namespace ActiveStruts.Modules
             {
                 InputLockManager.SetControlLock(EditorLockMask, Config.Instance.EditorInputLockId);
             }
-            OSD.Info(Config.Instance.FreeAttachHelpText, 5);
+            OSD.PostMessage(Config.Instance.FreeAttachHelpText, 5);
             ActiveStrutsAddon.CurrentTargeter = this;
             ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
         }
@@ -375,7 +375,7 @@ namespace ActiveStruts.Modules
             }
             else
             {
-                OSD.Warn("Nothing has been hit.");
+                OSD.PostMessage("Nothing has been hit.");
             }
         }
 
@@ -403,7 +403,7 @@ namespace ActiveStruts.Modules
             }
             ActiveStrutsAddon.Mode = AddonMode.Link;
             ActiveStrutsAddon.CurrentTargeter = this;
-            OSD.Info(Config.Instance.LinkHelpText, 5);
+            OSD.PostMessage(Config.Instance.LinkHelpText, 5);
             this.UpdateGui();
         }
 
@@ -421,7 +421,7 @@ namespace ActiveStruts.Modules
             }
             this._jointBroken = true;
             this.PlayBreakSound();
-            OSD.Warn("Joint broken!");
+            OSD.PostMessage("Joint broken!");
         }
 
         public override void OnStart(StartState state)
@@ -620,7 +620,7 @@ namespace ActiveStruts.Modules
                 this.CreateStrut(targetPoint[0]);
                 this.Target = null;
                 this.Targeter = null;
-                OSD.Success("FreeAttach Link established!");
+                OSD.PostMessage("FreeAttach Link established!");
             }
             this.UpdateGui();
         }
@@ -669,7 +669,7 @@ namespace ActiveStruts.Modules
                 (this.IsFreeAttached ? this.FreeAttachPart == null : this.Target == null) ||
                 !this.IsDocked)
             {
-                OSD.Warn("Can't undock");
+                OSD.PostMessage("Can't undock");
                 return;
             }
             var vi = new DockedVesselInfo
@@ -688,7 +688,7 @@ namespace ActiveStruts.Modules
                 this.Target.part.Undock(vi);
             }
             this.UpdateGui();
-            OSD.Success("Undocked");
+            OSD.PostMessage("Undocked");
         }
 
         public void ProcessUnlink(bool secondary = false)
@@ -738,7 +738,7 @@ namespace ActiveStruts.Modules
                             }
                         }
                     }
-                    OSD.Success("Unlinked!");
+                    OSD.PostMessage("Unlinked!");
                     this.PlayDetachSound();
                 }
                 this.IsConnectionOrigin = false;
@@ -877,7 +877,7 @@ namespace ActiveStruts.Modules
             this.CreateJoint(this.part.rigidbody, target.part.parent.rigidbody, type, this.Target.transform.position);
             this.CreateStrut(target.Origin.position, target.IsTargetOnly ? 1 : 0.5f);
             Util.Util.ResetAllFromTargeting();
-            OSD.Success("Link established!");
+            OSD.PostMessage("Link established!");
             ActiveStrutsAddon.Mode = AddonMode.None;
             this.UpdateGui();
         }
@@ -969,7 +969,7 @@ namespace ActiveStruts.Modules
                     }
                 }
             }
-            OSD.Info("Joint enforcement temporarily changed.");
+            OSD.PostMessage("Joint enforcement temporarily changed.");
             this.UpdateGui();
         }
 
@@ -1001,7 +1001,7 @@ namespace ActiveStruts.Modules
                     }
                     else
                     {
-                        OSD.Warn("Can't relink at the moment, target may be obstructed.");
+                        OSD.PostMessage("Can't relink at the moment, target may be obstructed.");
                     }
                 }
                 else if (this.Targeter != null)
@@ -1012,7 +1012,7 @@ namespace ActiveStruts.Modules
                     }
                     else
                     {
-                        OSD.Warn("Can't relink at the moment, targeter may be obstructed.");
+                        OSD.PostMessage("Can't relink at the moment, targeter may be obstructed.");
                     }
                 }
             }
@@ -1217,9 +1217,13 @@ namespace ActiveStruts.Modules
         private Vector3[] _convertFreeAttachRayHitPointToStrutTarget()
         {
             var offset = this.FreeAttachPositionOffset;
-            if ((this.FreeAttachPositionOffsetVectorSetInEditor && HighLogic.LoadedSceneIsFlight) || HighLogic.LoadedSceneIsEditor)
+            if ((this.FreeAttachPositionOffsetVectorSetInEditor && HighLogic.LoadedSceneIsFlight) || HighLogic.LoadedSceneIsEditor) //if (HighLogic.LoadedSceneIsEditor)
             {
                 offset = this.FreeAttachPart.transform.rotation*offset;
+                //if (this.FreeAttachPositionOffsetVectorSetInEditor && HighLogic.LoadedSceneIsFlight)
+                //{
+                //    offset = new Quaternion(0, 1, 0, 45)*offset;
+                //}
             }
             var targetHit =
                 Util.Util.PerformRaycast(this.Origin.position,
@@ -1424,12 +1428,12 @@ namespace ActiveStruts.Modules
                 if (this._dullLightsExtended)
                 {
                     this.LightsDull.Translate(new Vector3(this.LightsOffset, 0, 0));
-                    _dullLightsExtended = false;
+                    this._dullLightsExtended = false;
                 }
                 if (this._brightLightsExtended)
                 {
                     this.LightsBright.Translate(new Vector3(this.LightsOffset, 0, 0));
-                    _brightLightsExtended = false;
+                    this._brightLightsExtended = false;
                 }
                 return;
             }
