@@ -242,12 +242,6 @@ namespace ActiveStruts.Addons
             GameEvents.onPartAttach.Remove(this.HandleFlightPartAttach);
         }
 
-        //// ReSharper disable once InconsistentNaming
-        //public void OnGUI()
-        //{
-        //    OSD.Update();
-        //}
-
         private static void TrimQueue()
         {
             lock (_idResetQueueLock)
@@ -420,7 +414,7 @@ namespace ActiveStruts.Addons
                 return;
             }
             _idResetCounter = Config.IdResetCheckInterval;
-            var doneSomethingFlag = false;
+            var updateFlag = false;
             while (!IsQueueEmpty())
             {
                 var module = Dequeue();
@@ -428,11 +422,11 @@ namespace ActiveStruts.Addons
                 {
                     module.ResetId();
                 }
-                doneSomethingFlag = true;
+                updateFlag = true;
             }
-            if (doneSomethingFlag)
+            if (updateFlag)
             {
-                OSD.PostMessage("IDs have been updated. Bloody workaround...");
+                Debug.Log("[AS] IDs have been updated.");
             }
             if (_idResetTrimFlag)
             {
