@@ -202,6 +202,10 @@ namespace ActiveStruts.Modules
             this.Mode = Mode.Unlinked;
             Util.Util.ResetAllFromTargeting();
             ActiveStrutsAddon.Mode = AddonMode.None;
+            if (HighLogic.LoadedSceneIsEditor)
+            {
+                InputLockManager.RemoveControlLock(Config.Instance.EditorInputLockId);
+            }
             OSD.PostMessage("Link aborted.");
             this.UpdateGui();
         }
