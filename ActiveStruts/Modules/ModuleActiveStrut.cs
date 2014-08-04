@@ -353,7 +353,10 @@ namespace ActiveStruts.Modules
             {
                 InputLockManager.SetControlLock(EditorLockMask, Config.Instance.EditorInputLockId);
             }
-            OSD.PostMessage(Config.Instance.FreeAttachHelpText, 5);
+            if (Config.Instance.ShowHelpTexts)
+            {
+                OSD.PostMessage(Config.Instance.FreeAttachHelpText, 5);
+            }
             ActiveStrutsAddon.CurrentTargeter = this;
             ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
         }
@@ -403,7 +406,10 @@ namespace ActiveStruts.Modules
             }
             ActiveStrutsAddon.Mode = AddonMode.Link;
             ActiveStrutsAddon.CurrentTargeter = this;
-            OSD.PostMessage(Config.Instance.LinkHelpText, 5);
+            if (Config.Instance.ShowHelpTexts)
+            {
+                OSD.PostMessage(Config.Instance.LinkHelpText, 5);
+            }
             this.UpdateGui();
         }
 
@@ -719,23 +725,20 @@ namespace ActiveStruts.Modules
                 this.LinkType = LinkType.None;
                 if (this.IsConnectionOrigin)
                 {
-                    if (!this.IsFreeAttached)
+                    if (this.Target != null)
                     {
-                        if (this.Target != null)
+                        try
                         {
-                            try
+                            this.Target.ProcessUnlink(true);
+                            if (HighLogic.LoadedSceneIsEditor)
                             {
-                                this.Target.ProcessUnlink(true);
-                                if (HighLogic.LoadedSceneIsEditor)
-                                {
-                                    this.Target.Targeter = null;
-                                    this.Target = null;
-                                }
+                                this.Target.Targeter = null;
+                                this.Target = null;
                             }
-                            catch (NullReferenceException)
-                            {
-                                //fail silently
-                            }
+                        }
+                        catch (NullReferenceException)
+                        {
+                            //fail silently
                         }
                     }
                     OSD.PostMessage("Unlinked!");
@@ -767,6 +770,7 @@ namespace ActiveStruts.Modules
             this.DestroyJoint();
             this.LinkType = LinkType.None;
             this.UpdateGui();
+            OSD.PostMessage("Unlinked!");
             this.PlayDetachSound();
         }
 

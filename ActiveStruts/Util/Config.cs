@@ -7,13 +7,16 @@ namespace ActiveStruts.Util
 {
     public class Config
     {
+        // ReSharper disable once InconsistentNaming
         private const string _freeAttachHelpText = "Left-Click on a valid position to establish a link. Press 'x' to abort.";
+        // ReSharper disable once InconsistentNaming
         private const string _linkHelpText = "Left-Click on a possible target to establish a link. Press 'x' to abort or use the 'Abort Link' button.";
+        // ReSharper disable once InconsistentNaming
         private const string _moduleName = "ModuleActiveStrut";
-        private const string _editorInputLockId = "[AS] temp editor lock";
+        // ReSharper disable once InconsistentNaming
+        private const string _editorInputLockId = "[AS] editor lock";
         public const float UnfocusedRange = 3f;
         public const int TargetHighlightDuration = 3;
-
         // ReSharper disable once InconsistentNaming
         private const string _moduleActiveStrutFreeAttachTarget = "ModuleActiveStrutFreeAttachTarget";
         private const string ConfigFilePath = "GameData/ActiveStruts/Plugin/ActiveStruts.cfg";
@@ -38,7 +41,8 @@ namespace ActiveStruts.Util
                                                                                {"GlobalJointEnforcement", new SettingsEntry(false)},
                                                                                {"GlobalJointWeakness", new SettingsEntry(false)},
                                                                                {"StrutRealignDistanceTolerance", new SettingsEntry(0.02f)},
-                                                                               {"EnableDocking", new SettingsEntry(false)}
+                                                                               {"EnableDocking", new SettingsEntry(false)},
+                                                                               {"ShowHelpTexts", new SettingsEntry(true)}
                                                                            };
 
         private static Config _instance;
@@ -132,6 +136,11 @@ namespace ActiveStruts.Util
         public float NormalJointStrength
         {
             get { return (float) _getValue<double>("NormalJointStrength"); }
+        }
+
+        public bool ShowHelpTexts
+        {
+            get { return _getValue<bool>("ShowHelpTexts"); }
         }
 
         public string SoundAttachFileUrl

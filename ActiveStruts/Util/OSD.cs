@@ -8,7 +8,7 @@ namespace ActiveStruts.Util
 
         public static void PostMessage(String text, float shownFor = 3.7f)
         {
-            ScreenMessages.PostScreenMessage(Prefix + text, shownFor);
+            ScreenMessages.PostScreenMessage(Prefix + text, shownFor, ScreenMessageStyle.UPPER_CENTER);
         }
     }
 }
