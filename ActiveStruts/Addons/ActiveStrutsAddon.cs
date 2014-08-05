@@ -15,7 +15,8 @@ namespace ActiveStruts.Addons
         private static int _idResetCounter;
         private static bool _idResetTrimFlag;
         private bool _resetAllHighlighting;
-        private List<HighlightedTargetPart> _targetHighlightedParts;
+        private List<StraightOutHintActivePart> _straightOutHintActiveParts;
+        private List<HighlightedPart> _targetHighlightedParts;
         public static ModuleActiveStrut CurrentTargeter { get; set; }
         public static AddonMode Mode { get; set; }
         public static Vector3 Origin { get; set; }
@@ -67,6 +68,17 @@ namespace ActiveStruts.Addons
             {
                 module.Targeter.part.SetHighlightDefault();
             }
+            if (!Config.Instance.ShowStraightOutHint)
+            {
+                return;
+            }
+            var hintObj = this._straightOutHintActiveParts.Where(sohap => sohap.ModuleID == module.ID).Select(sohap => sohap).FirstOrDefault();
+            if (hintObj == null)
+            {
+                return;
+            }
+            this._straightOutHintActiveParts.Remove(hintObj);
+            Destroy(hintObj.HintObject);
         }
 
         //must not be static
@@ -85,13 +97,17 @@ namespace ActiveStruts.Addons
             {
                 module.Target.part.SetHighlightColor(Color.cyan);
                 module.Target.part.SetHighlight(true);
-                this._targetHighlightedParts.Add(new HighlightedTargetPart(module.Target.part, module.ID));
+                this._targetHighlightedParts.Add(new HighlightedPart(module.Target.part, module.ID));
             }
             else if (module.Targeter != null && !module.IsConnectionOrigin)
             {
                 module.Targeter.part.SetHighlightColor(Color.cyan);
                 module.Targeter.part.SetHighlight(true);
-                this._targetHighlightedParts.Add(new HighlightedTargetPart(module.Targeter.part, module.ID));
+                this._targetHighlightedParts.Add(new HighlightedPart(module.Targeter.part, module.ID));
+            }
+            if (Config.Instance.ShowStraightOutHint)
+            {
+                this._straightOutHintActiveParts.Add(new StraightOutHintActivePart(data, module.ID, CreateStraightOutHintForPart(module), module));
             }
         }
 
@@ -101,11 +117,13 @@ namespace ActiveStruts.Addons
             {
                 return;
             }
-            this._targetHighlightedParts = new List<HighlightedTargetPart>();
+            this._targetHighlightedParts = new List<HighlightedPart>();
+            this._straightOutHintActiveParts = new List<StraightOutHintActivePart>();
             _connector = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             _connector.name = "ASConn";
             DestroyImmediate(_connector.collider);
-            _connector.transform.localScale = new Vector3(Config.Instance.ConnectorDimension, Config.Instance.ConnectorDimension, Config.Instance.ConnectorDimension);
+            var connDim = Config.Instance.ConnectorDimension;
+            _connector.transform.localScale = new Vector3(connDim, connDim, connDim);
             var mr = _connector.GetComponent<MeshRenderer>();
             mr.name = "ASConn";
             mr.material = new Material(Shader.Find("Transparent/Diffuse")) {color = Util.Util.MakeColorTransparent(Color.green)};
@@ -126,6 +144,21 @@ namespace ActiveStruts.Addons
                 _idResetCounter = Config.IdResetCheckInterval;
                 _idResetTrimFlag = false;
             }
+        }
+
+        private static GameObject CreateStraightOutHintForPart(ModuleActiveStrut module)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            go.SetActive(false);
+            go.name = Guid.NewGuid().ToString();
+            DestroyImmediate(go.collider);
+            var connDim = Config.Instance.ConnectorDimension;
+            go.transform.localScale = new Vector3(connDim, connDim, connDim);
+            var mr = go.GetComponent<MeshRenderer>();
+            mr.name = go.name;
+            mr.material = new Material(Shader.Find("Transparent/Diffuse")) {color = Util.Util.MakeColorTransparent(Color.blue)};
+            UpdateStraightOutHint(module, go);
+            return go;
         }
 
         public static IDResetable Dequeue()
@@ -269,7 +302,32 @@ namespace ActiveStruts.Addons
                 {
                     _processIdResets();
                 }
-                var resetList = new List<HighlightedTargetPart>();
+                if (Config.Instance.ShowStraightOutHint && this._straightOutHintActiveParts != null)
+                {
+                    var remList = new List<StraightOutHintActivePart>();
+                    var renewList = new List<StraightOutHintActivePart>();
+                    foreach (var straightOutHintActivePart in this._straightOutHintActiveParts)
+                    {
+                        if (straightOutHintActivePart.HasToBeRemoved)
+                        {
+                            remList.Add(straightOutHintActivePart);
+                        }
+                        else
+                        {
+                            renewList.Add(straightOutHintActivePart);
+                        }
+                    }
+                    foreach (var straightOutHintActivePart in remList)
+                    {
+                        this._straightOutHintActiveParts.Remove(straightOutHintActivePart);
+                        Destroy(straightOutHintActivePart.HintObject);
+                    }
+                    foreach (var straightOutHintActivePart in renewList)
+                    {
+                        UpdateStraightOutHint(straightOutHintActivePart.Module, straightOutHintActivePart.HintObject);
+                    }
+                }
+                var resetList = new List<HighlightedPart>();
                 if (this._targetHighlightedParts != null)
                 {
                     resetList = this._targetHighlightedParts.Where(targetHighlightedPart => targetHighlightedPart != null && targetHighlightedPart.HasToBeRemoved).ToList();
@@ -355,6 +413,34 @@ namespace ActiveStruts.Addons
                  * still to be preferred over an unhandled exception.
                  */
             }
+        }
+
+        private static void UpdateStraightOutHint(ModuleActiveStrut module, GameObject hint)
+        {
+            hint.SetActive(false);
+            var ray = new Ray(module.Origin.position, module.Origin.transform.right*-1);
+            RaycastHit info;
+            var maxDist = Config.Instance.MaxDistance;
+            var raycast = Physics.Raycast(ray, out info, maxDist);
+            var trans = hint.transform;
+            trans.position = module.Origin.position;
+            var dist = raycast
+                           ? info.distance/2f
+                           : maxDist;
+            if (raycast)
+            {
+                trans.LookAt(info.point);
+            }
+            else
+            {
+                trans.LookAt(module.Origin.transform.position + module.Origin.transform.right*-1);
+            }
+            trans.Rotate(new Vector3(0, 1, 0), 90f);
+            trans.Rotate(new Vector3(0, 0, 1), 90f);
+            trans.localScale = new Vector3(0.05f, dist, 0.05f);
+            trans.Translate(new Vector3(0f, dist, 0f));
+            hint.SetActive(true);
+            //print(string.Format("claculated dist = {0}", dist));
         }
 
         private static bool _checkForModule(Part part)
@@ -490,7 +576,7 @@ namespace ActiveStruts.Addons
         }
     }
 
-    public class HighlightedTargetPart
+    public class HighlightedPart
     {
         public bool HasToBeRemoved
         {
@@ -498,19 +584,34 @@ namespace ActiveStruts.Addons
             {
                 var now = DateTime.Now;
                 var dur = (now - this.HighlightStartTime).TotalSeconds;
-                return dur >= Config.TargetHighlightDuration;
+                return dur >= this.Duration;
             }
         }
 
         public DateTime HighlightStartTime { get; set; }
         public Guid ModuleID { get; set; }
         public Part Part { get; set; }
+        public int Duration { get; set; }
 
-        public HighlightedTargetPart(Part part, Guid moduleId)
+        public HighlightedPart(Part part, Guid moduleId)
         {
             this.Part = part;
             this.HighlightStartTime = DateTime.Now;
             this.ModuleID = moduleId;
+            this.Duration = Config.Instance.TargetHighlightDuration;
+        }
+    }
+
+    public class StraightOutHintActivePart : HighlightedPart
+    {
+        public GameObject HintObject { get; set; }
+        public ModuleActiveStrut Module { get; set; }
+
+        public StraightOutHintActivePart(Part part, Guid moduleId, GameObject hintObject, ModuleActiveStrut module) : base(part, moduleId)
+        {
+            this.HintObject = hintObject;
+            this.Module = module;
+            this.Duration = Config.Instance.StraightOutHintDuration;
         }
     }
 

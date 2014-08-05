@@ -16,7 +16,6 @@ namespace ActiveStruts.Util
         // ReSharper disable once InconsistentNaming
         private const string _editorInputLockId = "[AS] editor lock";
         public const float UnfocusedRange = 3f;
-        public const int TargetHighlightDuration = 3;
         // ReSharper disable once InconsistentNaming
         private const string _moduleActiveStrutFreeAttachTarget = "ModuleActiveStrutFreeAttachTarget";
         private const string ConfigFilePath = "GameData/ActiveStruts/Plugin/ActiveStruts.cfg";
@@ -42,7 +41,10 @@ namespace ActiveStruts.Util
                                                                                {"GlobalJointWeakness", new SettingsEntry(false)},
                                                                                {"StrutRealignDistanceTolerance", new SettingsEntry(0.02f)},
                                                                                {"EnableDocking", new SettingsEntry(false)},
-                                                                               {"ShowHelpTexts", new SettingsEntry(true)}
+                                                                               {"ShowHelpTexts", new SettingsEntry(true)},
+                                                                               {"ShowStraightOutHint", new SettingsEntry(true)},
+                                                                               {"StraightOutHintDuration", new SettingsEntry(4)},
+                                                                               {"TargetHighlightDuration", new SettingsEntry(3)}
                                                                            };
 
         private static Config _instance;
@@ -143,6 +145,11 @@ namespace ActiveStruts.Util
             get { return _getValue<bool>("ShowHelpTexts"); }
         }
 
+        public bool ShowStraightOutHint
+        {
+            get { return _getValue<bool>("ShowStraightOutHint"); }
+        }
+
         public string SoundAttachFileUrl
         {
             get { return _getValue<string>("SoundAttachFile"); }
@@ -163,6 +170,11 @@ namespace ActiveStruts.Util
             get { return _getValue<int>("StartDelay"); }
         }
 
+        public int StraightOutHintDuration
+        {
+            get { return _getValue<int>("StraightOutHintDuration"); }
+        }
+
         public float StrutRealignDistanceTolerance
         {
             get { return (float) _getValue<double>("StrutRealignDistanceTolerance"); }
@@ -171,6 +183,11 @@ namespace ActiveStruts.Util
         public int StrutRealignInterval
         {
             get { return _getValue<int>("StrutRealignInterval"); }
+        }
+
+        public int TargetHighlightDuration
+        {
+            get { return _getValue<int>("TargetHighlightDuration"); }
         }
 
         public float WeakJointStrength
@@ -197,7 +214,7 @@ namespace ActiveStruts.Util
         {
             if (!Values.ContainsKey(key))
             {
-                throw new ArgumentException();
+                throw new ArgumentException("config key unknown");
             }
             var val = Values[key];
             var ret = val.Value ?? val.DefaultValue;
