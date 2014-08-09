@@ -68,7 +68,7 @@ namespace ActiveStruts.Addons
             {
                 module.Targeter.part.SetHighlightDefault();
             }
-            if (!Config.Instance.ShowStraightOutHint)
+            if (!Config.Instance.ShowStraightOutHint || module.IsTargetOnly || module.IsLinked)
             {
                 return;
             }
