@@ -590,7 +590,7 @@ namespace ActiveStruts.Modules
                 ActiveStrutsAddon.Mode = AddonMode.None;
                 if (overridePositionOffset)
                 {
-                    this.FreeAttachPositionOffset = hitPosition - hittedPart.transform.position; //hittedPart.transform.position;
+                    this.FreeAttachPositionOffset = hitPosition - hittedPart.transform.position;
                     if (HighLogic.LoadedSceneIsEditor)
                     {
                         this.FreeAttachPositionOffset = hittedPart.transform.rotation.Inverse()*this.FreeAttachPositionOffset;
@@ -1225,13 +1225,9 @@ namespace ActiveStruts.Modules
         private Vector3[] _convertFreeAttachRayHitPointToStrutTarget()
         {
             var offset = this.FreeAttachPositionOffset;
-            if ((this.FreeAttachPositionOffsetVectorSetInEditor && HighLogic.LoadedSceneIsFlight) || HighLogic.LoadedSceneIsEditor) //if (HighLogic.LoadedSceneIsEditor)
+            if ((this.FreeAttachPositionOffsetVectorSetInEditor && HighLogic.LoadedSceneIsFlight) || HighLogic.LoadedSceneIsEditor)
             {
                 offset = this.FreeAttachPart.transform.rotation*offset;
-                //if (this.FreeAttachPositionOffsetVectorSetInEditor && HighLogic.LoadedSceneIsFlight)
-                //{
-                //    offset = new Quaternion(0, 1, 0, 45)*offset;
-                //}
             }
             var targetHit =
                 Util.Util.PerformRaycast(this.Origin.position,
@@ -1242,7 +1238,7 @@ namespace ActiveStruts.Modules
             var pfh = targetHit.PartFromHit();
             if (pfh == null || pfh != this.FreeAttachPart)
             {
-                targetPos = this._oldTargetPosition == Vector3.zero ? this.FreeAttachPart.transform.position : this._oldTargetPosition; //this.Origin.position;
+                targetPos = this._oldTargetPosition == Vector3.zero ? this.FreeAttachPart.transform.position : this._oldTargetPosition;
                 normalVector = Vector3.zero;
             }
             else if (this._oldTargetPosition != Vector3.zero)

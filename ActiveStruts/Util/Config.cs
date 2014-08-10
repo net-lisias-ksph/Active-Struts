@@ -43,7 +43,7 @@ namespace ActiveStruts.Util
                                                                                {"EnableDocking", new SettingsEntry(false)},
                                                                                {"ShowHelpTexts", new SettingsEntry(true)},
                                                                                {"ShowStraightOutHint", new SettingsEntry(true)},
-                                                                               {"StraightOutHintDuration", new SettingsEntry(4)},
+                                                                               {"StraightOutHintDuration", new SettingsEntry(2)},
                                                                                {"TargetHighlightDuration", new SettingsEntry(3)}
                                                                            };
 

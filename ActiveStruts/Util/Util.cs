@@ -209,11 +209,15 @@ namespace ActiveStruts.Util
 
         public static Part PartFromHit(this RaycastHit hit)
         {
+            if (hit.collider == null || hit.collider.gameObject == null)
+            {
+                return null;
+            }
             var go = hit.collider.gameObject;
             var p = Part.FromGO(go);
             while (p == null)
             {
-                if (go.transform.parent != null && go.transform.parent.gameObject != null)
+                if (go.transform != null && go.transform.parent != null && go.transform.parent.gameObject != null)
                 {
                     go = go.transform.parent.gameObject;
                 }
@@ -233,6 +237,7 @@ namespace ActiveStruts.Util
             var ray = new Ray(origin, dir);
             var hit = Physics.Raycast(ray, out info, Config.Instance.MaxDistance + 1);
             var hittedPart = hit ? PartFromHit(info) : null;
+            hit = hit && hittedPart != null;
             var angle = Vector3.Angle(dir, originUp);
             return new RaycastResult
                    {
