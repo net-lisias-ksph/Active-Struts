@@ -4,7 +4,7 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{93A0B490-9598-449E-9A15-31427B585C76}</ProjectGuid>
+    <ProjectGuid>{0CCA2E32-EF2A-40E9-B70E-FCB177BB52B2}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>ActiveStruts</RootNamespace>
@@ -12,56 +12,52 @@
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
+    <SccProjectName>SAK</SccProjectName>
+    <SccLocalPath>SAK</SccLocalPath>
+    <SccAuxPath>SAK</SccAuxPath>
+    <SccProvider>SAK</SccProvider>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <OutputPath>bin\Debug 1.4.2\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;_KSP_1_4_2</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <OutputPath>bin\Release 1.4.2\</OutputPath>
+    <DefineConstants>TRACE;_KSP_1_4_2</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\KSP_LIB\Assembly-CSharp.dll</HintPath>
-      <Private>False</Private>
+      <HintPath>C:\Kerbal Space Program 1.4.2 Dev\KSP_x64_Data\Managed\Assembly-CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="KerbalJointReinforcement_Redist">
+      <HintPath>..\..\..\Kerbal-Joint-Reinforcement\KerbalJointReinforcement\KerbalJointReinforcement_Redist\bin\Debug\KerbalJointReinforcement_Redist.dll</HintPath>
     </Reference>
     <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Xml" />
     <Reference Include="UnityEngine">
-      <HintPath>..\..\KSP_LIB\UnityEngine.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="KSPUtil">
-      <HintPath>..\..\KSP_LIB\KSPUtil.dll</HintPath>
+      <HintPath>C:\Kerbal Space Program 1.4.2 Dev\KSP_x64_Data\Managed\UnityEngine.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.UI">
-      <HintPath>..\..\KSP_LIB\UnityEngine.UI.dll</HintPath>
+      <HintPath>C:\Kerbal Space Program 1.4.2 Dev\KSP_x64_Data\Managed\UnityEngine.UI.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Addons\ActiveStrutsAddon.cs" />
+    <Compile Include="Modules\IActiveStrut.cs" />
     <Compile Include="Modules\IDResetable.cs" />
-    <Compile Include="Modules\ModuleActiveStrutFreeAttachTarget.cs" />
-    <Compile Include="Modules\ModuleAutoStrutter.cs" />
-    <Compile Include="Modules\ModuleKerbalHook.cs" />
-    <Compile Include="Modules\ModuleKerbalHookAnchor.cs" />
+    <Compile Include="Modules\ModuleActiveStrut_v3.cs" />
     <Compile Include="PartFactory.cs" />
     <Compile Include="Util\ColorExtenstions.cs" />
     <Compile Include="Util\Config.cs" />
+    <Compile Include="Util\LineDrawer.cs" />
     <Compile Include="Util\LinkType.cs" />
     <Compile Include="Util\Mode.cs" />
     <Compile Include="Modules\ModuleActiveStrut.cs" />

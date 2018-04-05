@@ -1,10 +1,12 @@
-bin/
-obj/
+*.vspscc
+*.vssscc
+*.scc
 *.suo
-packages/
+*.user
 
-*.userprefs
+/ActiveStruts/*.sln
 
-*.userprefs
+/_release/
 
-*.userprefs
+/ActiveStruts/ActiveStruts/bin/
+/ActiveStruts/ActiveStruts/obj/
