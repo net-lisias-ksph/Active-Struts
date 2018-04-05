@@ -1,7 +1,7 @@
 ﻿{
   "NAME"     : "Infernal Robotics ActiveStruts",
   "DOWNLOAD" : "https://github.com/meirumeiru/IR-ActiveStruts/releases",
-  "URL"      : "https://raw.githubusercontent.com/meirumeiru/IR-ActiveStruts/master/Resources/GameData/MagicSmokeIndustries/IRSequencer/IRSequencer_1.4.version",
+  "URL"      : "https://raw.githubusercontent.com/meirumeiru/Active-Struts/develop/Resources/GameData/MagicSmokeIndustries/IRActiveStruts/ActiveStruts_1.4.version",
   "GITHUB" : {
       "USERNAME"   : "meirumeiru",
       "REPOSITORY" : "IR-ActiveStruts"
