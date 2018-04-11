@@ -6,11 +6,13 @@ using System.Text;
 using UnityEngine;
 
 using ActiveStruts.Addons;
+using ActiveStruts.Effects;
 using ActiveStruts.Util;
+
 
 namespace ActiveStruts.Modules
 {
-	public class ModuleActiveStrut_v3 : PartModule, KerbalJointReinforcement.IKJRaware, IActiveStrut // FEHLER, IActiveStrut ist temp während Umstellung
+	public class ModuleActiveStrut_v3 : PartModule, IJointLockState, IActiveStrut // FEHLER, IActiveStrut ist temp während Umstellung
 	{
 // FEHLER, Würgi Würgi
 public void UpdateGui() {}
@@ -25,6 +27,27 @@ public Part Part() { return part; }
 		[KSPField(isPersistant = false)] public Vector3 axis = Vector3.left;	// rotation axis of the anchor
 		[KSPField(isPersistant = false)] public Vector3 pointer = Vector3.up;	// rotation axis of the strut
 
+		[KSPField(isPersistant = true)] private float breakForce = 10000f;
+		[KSPField(isPersistant = true)] private float breakTorque = 10000f;
+
+		[KSPField(isPersistant = true)] private float translationalForce = 10000f;
+		[KSPField(isPersistant = true)] private float rotationalForce = 10000f;
+
+		[KSPField(isPersistant = true)] private float translationalSpring = 100000f;
+		[KSPField(isPersistant = true)] private float rotationalSpring = 100000f;
+
+		// Sound
+		// Sound
+		[KSPField(isPersistant = false)] public float soundPitch = 0.8f;
+		[KSPField(isPersistant = false)] public float soundVolume = 0.5f;
+		[KSPField(isPersistant = false)] public string soundFilePath = "MagicSmokeIndustries/Sounds/infernalRoboticMotor";
+		protected SoundSource soundSound = null;
+
+		public FXGroup SoundAttach;
+		public FXGroup SoundBreak;
+		public FXGroup SoundDetach;
+
+		// Meshes
 		public Transform Anchor;
 		[KSPField(isPersistant = false)] public String AnchorName;
 		public Quaternion AnchorOriginalRotation;
@@ -56,9 +79,9 @@ public Part Part() { return part; }
 
 
 		[KSPField(isPersistant = true)] public bool IsTarget;
-		ModuleActiveStrut_v3 connectedPart = null;
+		Part connectedPart = null;
 
-		enum Mode { free, connecting, linked, retracting };
+		enum Mode { free, connecting, linked, retracting, broken };
 		Mode currentMode = Mode.free;
 
 
@@ -81,6 +104,23 @@ public Part Part() { return part; }
 			DebugInit();
 
 			FindMeshes();
+
+			if(soundSound == null)
+				soundSound = new SoundSource(part, "motor");
+			soundSound.Setup(soundFilePath, true);
+/*
+			if(SoundAttach == null || SoundBreak == null || SoundDetach == null ||
+				!GameDatabase.Instance.ExistsAudioClip(Config.Instance.SoundAttachFileUrl) ||
+				!GameDatabase.Instance.ExistsAudioClip(Config.Instance.SoundDetachFileUrl) ||
+				!GameDatabase.Instance.ExistsAudioClip(Config.Instance.SoundBreakFileUrl))
+			{
+				Debug.Log("[IRAS] sounds cannot be loaded." +
+						  (SoundAttach == null ? "FXGroup not instantiated" : "sound file not found"));
+			}
+*/
+			SetupFxGroup(SoundAttach, gameObject, Config.Instance.SoundAttachFileUrl);
+			SetupFxGroup(SoundDetach, gameObject, Config.Instance.SoundDetachFileUrl);
+			SetupFxGroup(SoundBreak, gameObject, Config.Instance.SoundBreakFileUrl);
 		}
 
 		public void OnDestroy()
@@ -112,6 +152,22 @@ public Part Part() { return part; }
 				isOnRails = false;
 			}
 		}
+
+		public void OnJointBreak(float breakForce)
+		{
+			currentMode = Mode.broken;
+
+			Strut.localScale = Vector3.zero;
+			Grappler.localScale = Vector3.zero;
+				// FEHLER, oder die zwei da oben zerstören???
+
+			PlayBreakSound();
+
+//			OSD.PostMessage("Joint broken!");
+		}
+
+		////////////////////////////////////////
+		// Functions
 
 		private void FindMeshes()
 		{
@@ -188,18 +244,29 @@ public Part Part() { return part; }
 */
 		}
 
-		////////////////////////////////////////
-		// Functions
-
 		public bool IsValidTarget
 		{ get { return IsTarget && !connectedPart; } } // FEHLER, nur wenn Target und nicht belegt...
 
 		public void SetLink(ModuleActiveStrut_v3 target)
 		{
-			connectedPart = target;
-			target.connectedPart = this;
+			connectedPart = target.part;
+			target.connectedPart = part;
 
 			currentMode = Mode.connecting;
+
+			CreateTarget(target.part, target.transform.position, -target.transform.right);
+
+			Events["Link"].active = Events["Link"].guiActive = false;
+			Events["Unlink"].active = Events["Unlink"].guiActive = true;
+		}
+
+		public void SetFreeLink(RaycastResult raycast)
+		{
+			connectedPart = raycast.HittedPart;
+
+			currentMode = Mode.connecting;
+
+			CreateTarget(raycast.HittedPart, raycast.Hit.point, raycast.Hit.normal);
 
 			Events["Link"].active = Events["Link"].guiActive = false;
 			Events["Unlink"].active = Events["Unlink"].guiActive = true;
@@ -209,8 +276,15 @@ public Part Part() { return part; }
 		{
 			if(connectedPart != null)
 			{
-				connectedPart.connectedPart = null;
+				ModuleActiveStrut_v3 cP = connectedPart.GetComponent<ModuleActiveStrut_v3>();
+
+				if(cP)
+					cP.connectedPart = null;
 				connectedPart = null;
+
+				DestroyJoints();
+
+				DestroyTarget();
 
 				currentMode = Mode.retracting;
 			}
@@ -275,7 +349,7 @@ public Part Part() { return part; }
 
 			for(int i = 0; i < 4; i++)
 			{
-				Quaternion q = quat(connectedPart.transform, id[i]);
+				Quaternion q = quat(targetObject.transform, id[i]);
 				q = q * Quaternion.Inverse(Grappler.rotation); // sonst wär's nicht relativ
 				fs[i] = Vector3.Angle(Grappler.forward, q * Grappler.forward);
 			}
@@ -287,367 +361,7 @@ public Part Part() { return part; }
 
 			return id[sel];
 		}
-
-// FEHLER, wir bauen jetzt mal den Ziel-Zustand, den Start-Zustand und den Zugeklappt-Zustand auf...
-// später dann die Animationen dazwischen
-
-		private void s(bool p_bFull)
-		{
-			if(IsTarget)
-				return;
-
-			Vector3 wohin = connectedPart.transform.position;
-
-			// zuerst die Rotation der Basis
-
-			Vector3 globalAxis = part.transform.TransformDirection(axis);
-
-			float angleBase =
-				MinimizeTurn(
-					90 + AngleSigned(
-						part.transform.TransformDirection(pointer),
-						Vector3.ProjectOnPlane(wohin - part.transform.position, globalAxis), globalAxis));
-
-			Quaternion rotationBase = Quaternion.AngleAxis(-angleBase, axis);
-
-			// dann die Rotation der Strebe
-
-			Vector3 globalPointer = part.transform.TransformDirection(rotationBase * pointer);
-
-			float angleStrut =
-				AngleSigned(
-					globalAxis,
-					wohin - part.transform.position, globalPointer);	// FEHLER, ausser er hätte einen Offset, dann statt part-position diesen noch nutzen
-
-			Quaternion rotationStrut = Quaternion.AngleAxis(-angleStrut, rotationBase * pointer);
-
-			// jetzt noch die Länge der Strebe
-
-			float distance = (wohin - part.transform.position).magnitude;
-
-			// und die Drehung des Kopfs
-
-			Quaternion rotationHead = quat(connectedPart.transform, CalculateBestHeadTurn());
-				// die wär global und von allem oberen losgelöst... offenbar
-
-			if(p_bFull)
-			{
-				// jetzt die ganzen Meshes hindrehen wie gewünscht... nur mal... als Test
-/*				ResetMeshPositions();
-
-				UpdateMeshPositions(axis, -angleBase);
-
-	Quaternion locrot = Anchor.localRotation;
-				UpdateMeshPositions(pointer, -angleStrut);
-	Anchor.localRotation = locrot;*/
-
-				UpdateMeshPositionsInOne(-angleBase, -angleStrut);
-
-				Strut.localScale = new Vector3(distance * StrutScaleFactor, 1, 1);
-
-				Grappler.rotation = rotationHead;
-				Grappler.position = wohin;
-			}
-			else // Schrittweise sich annähern versuchen
-			{
-				Quaternion rot1 = Quaternion.AngleAxis(-angleBase, axis);
-
-				Quaternion AnchorRotation = rot1 * AnchorOriginalRotation;
-
-				float angle = Quaternion.Angle(Anchor.localRotation, AnchorRotation);
-
-				if(angle >= 1f)
-				{
-					Quaternion lrot1 = Quaternion.Slerp(Quaternion.identity, Quaternion.Inverse(Anchor.localRotation) * AnchorRotation, 1 / angle);
-
-					Anchor.localRotation *= lrot1;
-
-					LightsDull.localRotation *= lrot1;
-					LightsBright.localRotation *= lrot1;
-					Strut.localRotation *= lrot1;
-					Grappler.localRotation *= lrot1;
-				}
-				else
-				{
-					Quaternion lrot1 = Quaternion.Inverse(Anchor.localRotation) * AnchorRotation;
-					
-					Anchor.localRotation *= lrot1; // FEHLER, oder hier = AnchorRotation machen?
-
-					LightsDull.localRotation *= lrot1;
-					LightsBright.localRotation *= lrot1;
-					Strut.localRotation *= lrot1;
-					Grappler.localRotation *= lrot1;
-
-
-					Quaternion rot2 = Quaternion.AngleAxis(-angleStrut, pointer);
-
-					Quaternion StrutRotation = rot1 * rot2 * StrutOriginalRotation;
-
-					angle = Quaternion.Angle(Strut.localRotation, StrutRotation);
-
-					if(angle >= 1f)
-					{
-						Quaternion lrot2 = Quaternion.Slerp(Quaternion.identity, Quaternion.Inverse(Strut.localRotation) * StrutRotation, 1 / angle);
-
-						LightsDull.localRotation *= lrot2;
-						LightsBright.localRotation *= lrot2;
-						Strut.localRotation *= lrot2;
-						Grappler.localRotation *= lrot2;
-
-						Grappler.localPosition = Strut.localRotation * GrapplerOriginalPosition;
-					}
-					else
-					{
-						LightsDull.localRotation = rot1 * rot2 * LightsDullOriginalRotation;
-						LightsBright.localRotation = rot1 * rot2 * LightsBrightOriginalRotation;
-						Strut.localRotation = StrutRotation;
-						Grappler.localRotation = rot1 * rot2 * GrapplerOriginalRotation;
-
-						Grappler.localPosition = Strut.localRotation * GrapplerOriginalPosition;
-
-						if(distance - (Strut.localScale.x / StrutScaleFactor) > 0.005f)
-						{
-							float d = (Strut.localScale.x / StrutScaleFactor) + 0.005f;
-
-							Strut.localScale = new Vector3(d * StrutScaleFactor, 1, 1);
-
-							Grappler.position = part.transform.position + ((wohin - part.transform.position).normalized * d);
-
-							if(distance - d < 0.5f)
-								Grappler.rotation = Quaternion.Slerp(Grappler.rotation, rotationHead, (distance < 0.5f) ? (d / distance) : ((0.5f - distance + d) / 0.5f));
-						}
-						else
-						{
-							Strut.localScale = new Vector3(distance * StrutScaleFactor, 1, 1);
-
-							Grappler.rotation = rotationHead;
-							Grappler.position = wohin;
-
-							currentMode = Mode.linked;
-						}
-					}
-				}
-			}
-		}
-
-		private void t()
-		{
-			if(IsTarget)
-				return;
-
-			Vector3 wohin = Grappler.position;
-
-			// zuerst die Rotation der Basis
-
-			Vector3 globalAxis = part.transform.TransformDirection(axis);
-
-			Vector3 p1 = AnchorOriginalRotation * pointer;
-			Vector3 p2 = Anchor.localRotation * pointer;
-
-			float angleBase =
-				MinimizeTurn(
-					90 + AngleSigned(
-						part.transform.TransformDirection(pointer),
-						Vector3.ProjectOnPlane(wohin - part.transform.position, globalAxis), globalAxis));
-
-			angleBase = MinimizeTurn(AngleSigned(p1, p2, axis)); // FEHLER, neue Idee
-
-			Quaternion rotationBase = Quaternion.AngleAxis(-angleBase, axis);
-
-			// dann die Rotation der Strebe
-
-			Vector3 globalPointer = part.transform.TransformDirection(rotationBase * pointer);
-
-			float angleStrut =
-				AngleSigned(
-					globalAxis,
-					wohin - part.transform.position, globalPointer);	// FEHLER, ausser er hätte einen Offset, dann statt part-position diesen noch nutzen
-
-			Quaternion rotationStrut = Quaternion.AngleAxis(-angleStrut, rotationBase * pointer);
-
-			// jetzt noch die Länge der Strebe
-
-			float distance = (wohin - part.transform.position).magnitude;
-
-			{
-				// zuerst zurückziehen und den Kopf zurückdrehen
-
-				if(Strut.localScale.x >= (1 + 0.005 * StrutScaleFactor))
-				{
-					Grappler.localPosition = Strut.localRotation * GrapplerOriginalPosition;
-
-					float d = (Strut.localScale.x / StrutScaleFactor) - 0.005f;
-
-					Strut.localScale = new Vector3(d * StrutScaleFactor, 1, 1);
-
-					Grappler.position = part.transform.position + ((wohin - part.transform.position).normalized * d);
-
-					Quaternion rot1 = Quaternion.AngleAxis(-angleBase, axis);
-					Quaternion rot2 = Quaternion.AngleAxis(-angleStrut, pointer);
-
-					Quaternion rotationHead = rot1 * rot2 * GrapplerOriginalRotation;
-
-					float angle = Quaternion.Angle(Grappler.rotation, rotationHead);
-
-					if(angle > 3f)
-						Grappler.localRotation = Quaternion.Slerp(Grappler.localRotation, rotationHead, 3f / angle);
-					else
-						Grappler.localRotation = rotationHead;
-				}
-				else
-				{
-					Strut.localScale = Vector3.one;
-
-					if(Mathf.Abs(angleStrut) > 1f)
-					{
-						angleStrut += (angleStrut < 0f ? 1f : -1f);
-
-			// FEHLER, das andere da oben evtl. auch ähnlich machen?
-							Quaternion rot1c = Quaternion.AngleAxis(-angleBase, axis);
-
-							Anchor.localRotation = rot1c * AnchorOriginalRotation;
-
-							rot1c = rot1c * Quaternion.AngleAxis(-angleStrut, pointer);
-
-							LightsDull.localRotation = rot1c * LightsDullOriginalRotation;
-							LightsBright.localRotation = rot1c * LightsBrightOriginalRotation;
-							Strut.localRotation = rot1c * StrutOriginalRotation;
-							Grappler.localRotation = rot1c * GrapplerOriginalRotation;
-
-							Grappler.localPosition = Strut.localRotation * GrapplerOriginalPosition;
-					}
-		/*			Quaternion rot1 = Quaternion.AngleAxis(-angleBase, axis);
-
-					Quaternion StrutRotation = rot1 * StrutOriginalRotation;
-
-					float angle = Quaternion.Angle(Strut.localRotation, StrutRotation);
-
-					if(angle >= 1f)
-					{
-						Quaternion lrot2 = Quaternion.Inverse(Strut.localRotation) * Quaternion.Slerp(Strut.localRotation, StrutRotation, 1 / angle);
-// FEHLER, hier auch andere Strategie wählen über das was ich schon habe und immer total neu rechnen... nicht relativ
-						LightsDull.localRotation *= lrot2;
-						LightsBright.localRotation *= lrot2;
-						Strut.localRotation *= lrot2;
-						Grappler.localRotation *= lrot2;
-
-						Grappler.localPosition = Strut.localRotation * GrapplerOriginalPosition;
-					}*/
-					else
-					{
-	//					angle = Quaternion.Angle(Anchor.localRotation, AnchorOriginalRotation);
-
-						if(Mathf.Abs(angleBase) >= 1f)
-						{
-							angleBase += (angleBase < 0f ? 1f : -1f);
-
-			// FEHLER, das andere da oben evtl. auch ähnlich machen?
-							Quaternion rot1b = Quaternion.AngleAxis(-angleBase, axis);
-
-							Anchor.localRotation = rot1b * AnchorOriginalRotation;
-
-							LightsDull.localRotation = rot1b * LightsDullOriginalRotation;
-							LightsBright.localRotation = rot1b * LightsBrightOriginalRotation;
-							Strut.localRotation = rot1b * StrutOriginalRotation;
-							Grappler.localRotation = rot1b * GrapplerOriginalRotation;
-
-							Grappler.localPosition = Strut.localRotation * GrapplerOriginalPosition;
-						}
-						else
-						{
-							ResetMeshPositions();
-
-							currentMode = Mode.free;
-						}
-					}
-				}
-			}
-
 /*
-
-
-				Quaternion rot1 = Quaternion.AngleAxis(-angleBase, axis);
-
-				Quaternion AnchorRotation = rot1 * AnchorOriginalRotation;
-
-				Quaternion rot2 = Quaternion.AngleAxis(-angleStrut, pointer);
-
-				Quaternion StrutRotation = rot1 * rot2 * StrutOriginalRotation;
-
-				wenn die gleich ist... dann... oder Social...
-
-
-				float angle = Quaternion.Angle(Anchor.localRotation, AnchorRotation);
-
-				if(angle >= 1f)
-				{
-					Quaternion lrot1 = Quaternion.Slerp(Quaternion.identity, Quaternion.Inverse(Anchor.localRotation) * AnchorRotation, 1 / angle);
-
-					Anchor.localRotation *= lrot1;
-
-					LightsDull.localRotation *= lrot1;
-					LightsBright.localRotation *= lrot1;
-					Strut.localRotation *= lrot1;
-					Grappler.localRotation *= lrot1;
-				}
-				else
-				{
-					Quaternion lrot1 = Quaternion.Inverse(Anchor.localRotation) * AnchorRotation;
-					
-					Anchor.localRotation *= lrot1; // FEHLER, oder hier = AnchorRotation machen?
-
-					LightsDull.localRotation *= lrot1;
-					LightsBright.localRotation *= lrot1;
-					Strut.localRotation *= lrot1;
-					Grappler.localRotation *= lrot1;
-
-
-
-					angle = Quaternion.Angle(Strut.localRotation, StrutRotation);
-
-					if(angle >= 1f)
-					{
-						Quaternion lrot2 = Quaternion.Slerp(Quaternion.identity, Quaternion.Inverse(Strut.localRotation) * StrutRotation, 1 / angle);
-
-						LightsDull.localRotation *= lrot2;
-						LightsBright.localRotation *= lrot2;
-						Strut.localRotation *= lrot2;
-						Grappler.localRotation *= lrot2;
-
-						Grappler.localPosition = Strut.localRotation * GrapplerOriginalPosition;
-					}
-					else
-					{
-						LightsDull.localRotation = rot1 * rot2 * LightsDullOriginalRotation;
-						LightsBright.localRotation = rot1 * rot2 * LightsBrightOriginalRotation;
-						Strut.localRotation = StrutRotation;
-						Grappler.localRotation = rot1 * rot2 * GrapplerOriginalRotation;
-
-						Grappler.localPosition = Strut.localRotation * GrapplerOriginalPosition;
-
-						if(distance - (Strut.localScale.x / StrutScaleFactor) > 0.005f)
-						{
-							float d = (Strut.localScale.x / StrutScaleFactor) + 0.005f;
-
-							Strut.localScale = new Vector3(d * StrutScaleFactor, 1, 1);
-
-							Grappler.position = part.transform.position + ((wohin - part.transform.position).normalized * d);
-
-							if(distance - d < 0.5f)
-								Grappler.rotation = Quaternion.Slerp(Grappler.rotation, rotationHead, (distance < 0.5f) ? (d / distance) : ((0.5f - distance + d) / 0.5f));
-						}
-						else
-						{
-							Strut.localScale = new Vector3(distance * StrutScaleFactor, 1, 1);
-
-							Grappler.rotation = rotationHead;
-							Grappler.position = wohin;
-						}
-					}
-				}
-			}*/
-		}
-
 		private void ResetMeshPositions()
 		{
 			Anchor.localRotation = AnchorOriginalRotation;
@@ -663,135 +377,206 @@ public Part Part() { return part; }
 			Grappler.localPosition = GrapplerOriginalPosition;
 		}
 
-		private void UpdateMeshPositions(Vector3 axis, float angle)
-		{
-/*			Anchor.Rotate(axis, angle, Space.Self);
-
-			LightsDull.Rotate(axis, angle, Space.Self);
-			LightsBright.Rotate(axis, angle, Space.Self);
-			Strut.Rotate(axis, angle, Space.Self);
-			Grappler.Rotate(axis, angle, Space.Self);*/
-
-			Quaternion rot = Quaternion.AngleAxis(angle, axis);
-
-			Anchor.localRotation *= rot;
-
-			LightsDull.localRotation *= rot;
-			LightsBright.localRotation *= rot;
-			Strut.localRotation *= rot;
-			Grappler.localRotation *= rot;
-		}
-
-int iTry = 2;
-
 		private void UpdateMeshPositionsInOne(float angleBase, float angleStrut)
 		{
-			if(iTry == 0)
-			{
-			Anchor.localRotation = AnchorOriginalRotation;
+			Quaternion rot = Quaternion.AngleAxis(angleBase, axis);
 
-			LightsDull.localRotation = LightsDullOriginalRotation;
-			LightsDull.localPosition = LightsDullOriginalPosition;
-			LightsBright.localRotation = LightsBrightOriginalRotation;
-			LightsBright.localPosition = LightsBrightOriginalPosition;
-			Strut.localRotation = StrutOriginalRotation;
-			Strut.localPosition = StrutOriginalPosition;
-			Strut.localScale = Vector3.one;
-			Grappler.localRotation = GrapplerOriginalRotation;
-			Grappler.localPosition = GrapplerOriginalPosition;
+			Anchor.localRotation = rot * AnchorOriginalRotation;
 
-			Quaternion rot1 = Quaternion.AngleAxis(angleBase, axis);
+			rot = rot * Quaternion.AngleAxis(angleStrut, pointer);
 
-			Anchor.localRotation *= rot1;
-
-			LightsDull.localRotation *= rot1;
-			LightsBright.localRotation *= rot1;
-			Strut.localRotation *= rot1;
-			Grappler.localRotation *= rot1;
-
-			Quaternion rot2 = Quaternion.AngleAxis(angleStrut, pointer);
-
-			LightsDull.localRotation *= rot2;
-			LightsBright.localRotation *= rot2;
-			Strut.localRotation *= rot2;
-			Grappler.localRotation *= rot2;
-			}
-			else if(iTry == 1)
-			{
-			Quaternion rot1 = Quaternion.AngleAxis(angleBase, axis);
-			Quaternion rot2 = Quaternion.AngleAxis(angleStrut, pointer);
-
-			Anchor.localRotation = AnchorOriginalRotation;
-			Anchor.localRotation *= rot1;
-
-			LightsDull.localRotation = LightsDullOriginalRotation;
-			LightsDull.localRotation *= rot1;
-			LightsDull.localRotation *= rot2;
-		//	LightsDull.localPosition = LightsDullOriginalPosition;
-			LightsBright.localRotation = LightsBrightOriginalRotation;
-			LightsBright.localRotation *= rot1;
-			LightsBright.localRotation *= rot2;
-		//	LightsBright.localPosition = LightsBrightOriginalPosition;
-			Strut.localRotation = StrutOriginalRotation;
-			Strut.localRotation *= rot1;
-			Strut.localRotation *= rot2;
-		//	Strut.localPosition = StrutOriginalPosition;
-		//	Strut.localScale = Vector3.one;
-			Grappler.localRotation = GrapplerOriginalRotation;
-			Grappler.localRotation *= rot1;
-			Grappler.localRotation *= rot2;
-		//	Grappler.localPosition = GrapplerOriginalPosition;
-			}
-			else if(iTry == 2)
-			{
-			Quaternion rot1 = Quaternion.AngleAxis(angleBase, axis);
-			Quaternion rot2 = Quaternion.AngleAxis(angleStrut, pointer);
-
-			Anchor.localRotation = rot1 * AnchorOriginalRotation;
-
-			LightsDull.localRotation = rot1 * rot2 * LightsDullOriginalRotation;
-		//	LightsDull.localPosition = LightsDullOriginalPosition;
-			LightsBright.localRotation = rot1 * rot2 * LightsBrightOriginalRotation;
-		//	LightsBright.localPosition = LightsBrightOriginalPosition;
-			Strut.localRotation = rot1 * rot2 * StrutOriginalRotation;
-		//	Strut.localPosition = StrutOriginalPosition;
-		//	Strut.localScale = Vector3.one;
-			Grappler.localRotation = rot1 * rot2 * GrapplerOriginalRotation;
-		//	Grappler.localPosition = GrapplerOriginalPosition;
-			}
-		}
-
-/*
-		private void UpdateMeshPositions()
-		{
-			Strut.localScale = new Vector3((wohin - Origin.position).magnitude * StrutScaleFactor, 1, 1);
-
-
-			Vector3 relWohin = wohin - Anchor.position;
-			relWohin = Vector3.ProjectOnPlane(relWohin, Anchor.right);
-			relWohin = Anchor.position + relWohin;
-
-			DrawRelative(1, Anchor.position, wohin - Anchor.position);
-			DrawRelative(2, Anchor.position, relWohin - Anchor.position);
-
-	//		Anchor.LookAt(-(Anchor.position + relWohin), Anchor.up);
-
-//			Anchor.localRotation = Quaternion.FromToRotation(-Anchor.up, anrot2);
-
-
-	//		Anchor.rotation *= Quaternion.FromToRotation(Anchor.forward, rotTgt);
-
-	//		Anchor.localRotation = LightsDull.localRotation; // nur mal als Test	
-	
-		//	testSchrott();
+			LightsDull.localRotation = rot * LightsDullOriginalRotation;
+			LightsBright.localRotation = rot * LightsBrightOriginalRotation;
+			Strut.localRotation = rot * StrutOriginalRotation;
+			Grappler.localRotation = rot * GrapplerOriginalRotation;
 		}
 */
+		ConfigurableJoint sourceJoint = null;
+
+		GameObject targetObject = null;
+		ConfigurableJoint targetObjectJoint = null;
+
+		private void CreateTarget(Part partTarget, Vector3 positionTarget, Vector3 normalTarget)
+		{
+			DestroyTarget();
+
+// build object (at target head position)
+
+			targetObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+			if(targetObject.GetComponent<Rigidbody>() == null)
+				targetObject.AddComponent<Rigidbody>();
+		//	targetObject.name = "targetObject";
+			DestroyImmediate(targetObject.GetComponent<Collider>()); // von mir aus...
+			const float LOCAL_ANCHOR_DIM = 0.05f;
+			targetObject.transform.localScale = new Vector3(LOCAL_ANCHOR_DIM, LOCAL_ANCHOR_DIM, LOCAL_ANCHOR_DIM);
+			var mr = targetObject.GetComponent<MeshRenderer>();
+			mr.name = targetObject.name;
+			mr.material = new Material(Shader.Find("Diffuse")) {color = Color.magenta};
+			targetObject.GetComponent<Rigidbody>().mass = 0.01f;
+			targetObject.SetActive(true);
+
+			if(Vector3.Dot(normalTarget, Vector3.right) < Vector3.Dot(normalTarget, Vector3.up))
+				targetObject.transform.rotation = Quaternion.LookRotation(Vector3.Cross(normalTarget, Vector3.up),
+					Quaternion.AngleAxis(90, normalTarget) * Vector3.Cross(normalTarget, Vector3.up));
+			else
+				targetObject.transform.rotation = Quaternion.LookRotation(Vector3.Cross(normalTarget, Vector3.right),
+					Quaternion.AngleAxis(90, normalTarget) * Vector3.Cross(normalTarget, Vector3.right));
+
+			targetObject.transform.position = positionTarget;
+
+// joint hinterher schiessen
+
+			// build joint in new object and connect it to the target
+
+			targetObjectJoint = partTarget.gameObject.AddComponent<ConfigurableJoint>();
+				
+			targetObjectJoint.connectedBody = targetObject.GetComponent<Rigidbody>();
+
+			Vector3 v1 = part.transform.position - targetObject.transform.position; // x-axis -> must point along the strut
+			Vector3 v2 = Vector3.up; Vector3 v3 = Vector3.right;
+
+			Vector3.OrthoNormalize(ref v1, ref v2, ref v3);
+
+			targetObjectJoint.axis = v1; targetObjectJoint.secondaryAxis = v2;
+// FEHLER, diese Achse... funktioniert das so oder müsste ich die ab und zu nachrichten?? oder richtet die sich selber aus?... nein, tut sie nicht -> beim Zieh-Modus die nachrichten...
+
+			targetObjectJoint.breakForce = breakForce;
+			targetObjectJoint.breakTorque = breakTorque;
+
+			targetObjectJoint.xMotion = ConfigurableJointMotion.Free;
+			targetObjectJoint.yMotion = ConfigurableJointMotion.Free;
+			targetObjectJoint.zMotion = ConfigurableJointMotion.Free;
+			targetObjectJoint.angularXMotion = ConfigurableJointMotion.Free;
+			targetObjectJoint.angularYMotion = ConfigurableJointMotion.Free;
+			targetObjectJoint.angularZMotion = ConfigurableJointMotion.Free;
+
+			targetObjectJoint.rotationDriveMode = RotationDriveMode.XYAndZ;
+
+			targetObjectJoint.angularXDrive = targetObjectJoint.angularYZDrive = new JointDrive
+			{ positionSpring = rotationalSpring, positionDamper = 0f, maximumForce = rotationalForce };
+
+			// only rotation on this side (grappler)
+			targetObjectJoint.xMotion = targetObjectJoint.yMotion = targetObjectJoint.zMotion = ConfigurableJointMotion.Locked;
+
+			// allow the strut to pull back or act as spring
+			targetObjectJoint.xMotion = ConfigurableJointMotion.Free;
+			targetObjectJoint.xDrive = new JointDrive	
+			{ positionSpring = translationalSpring, positionDamper = 0f, maximumForce = translationalForce };
+
+			targetObjectJoint.projectionMode = JointProjectionMode.None;
+		//	targetObjectJoint.projectionAngle = 0f;
+		//	targetObjectJoint.projectionDistance = 0f;
+
+			// pull... but we don't want this now
+//	targetObjectJoint.targetPosition = Vector3.right // move always along x axis!!
+//		* (part.transform.position - targetObject.transform.position).magnitude; // / 2;
+
+			// just keep the position
+			targetObjectJoint.targetPosition = Vector3.zero;
+		}
+
+		private void CreateJoints()
+		{
+			if(currentMode != Mode.linked)
+				return;
+
+			DestroyJoints();
+
+			// build joint and connect it to the new object
+
+			sourceJoint = part.GetComponent<Rigidbody>().gameObject.AddComponent<ConfigurableJoint>();
+
+			sourceJoint.connectedBody = targetObject.GetComponent<Rigidbody>();
+
+			sourceJoint.breakForce = breakForce;
+			sourceJoint.breakTorque = breakTorque;
+
+			sourceJoint.xMotion = ConfigurableJointMotion.Free;
+			sourceJoint.yMotion = ConfigurableJointMotion.Free;
+			sourceJoint.zMotion = ConfigurableJointMotion.Free;
+			sourceJoint.angularXMotion = ConfigurableJointMotion.Free;
+			sourceJoint.angularYMotion = ConfigurableJointMotion.Free;
+			sourceJoint.angularZMotion = ConfigurableJointMotion.Free;
+
+			sourceJoint.rotationDriveMode = RotationDriveMode.XYAndZ;
+
+			sourceJoint.angularXDrive = sourceJoint.angularYZDrive = new JointDrive
+			{ positionSpring = rotationalSpring, positionDamper = 0f, maximumForce = rotationalForce };
+
+			// only rotation on this side (base)
+			sourceJoint.xMotion = sourceJoint.yMotion = sourceJoint.zMotion = ConfigurableJointMotion.Locked;
+
+			sourceJoint.projectionMode = JointProjectionMode.None;
+		//	sourceJoint.projectionAngle = 0f;
+		//	sourceJoint.projectionDistance = 0f;
+
+
+			PlayAttachSound();
+		}
+
+		private void DestroyJoints()
+		{
+			if(sourceJoint)
+				Destroy(sourceJoint);
+			sourceJoint = null;
+
+			PlayDetachSound();
+		}
+
+		private void DestroyTarget()
+		{
+			if(targetObjectJoint)
+				Destroy(targetObjectJoint);
+			targetObjectJoint = null;
+
+			if(targetObject)
+				Destroy(targetObject);
+			targetObject = null;
+		}
+
+		private static void SetupFxGroup(FXGroup group, GameObject gameObject, string audioFileUrl)
+		{
+			group.audio = gameObject.AddComponent<AudioSource>();
+			group.audio.clip = GameDatabase.Instance.GetAudioClip(audioFileUrl);
+			group.audio.dopplerLevel = 0f;
+			group.audio.rolloffMode = AudioRolloffMode.Linear;
+			group.audio.maxDistance = 30f;
+			group.audio.loop = false;
+			group.audio.playOnAwake = false;
+			group.audio.volume = GameSettings.SHIP_VOLUME;
+		}
+
+		private void PlayAudio(FXGroup group)
+		{
+			if(group == null || group.audio == null)
+				return;
+			group.audio.Play();
+		}
+
+		public void PlayAttachSound()
+		{
+			PlayAudio(SoundAttach);
+		}
+
+		public void PlayBreakSound()
+		{
+			PlayAudio(SoundBreak);
+		}
+
+		public void PlayDetachSound()
+		{
+			PlayAudio(SoundDetach);
+		}
+
 		////////////////////////////////////////
 		// Update-Functions
 
-//		public void FixedUpdate()
-//		{
-//		}
+		public void FixedUpdate()
+		{
+//DrawRelative(0, part.transform.position, part.transform.TransformDirection(Vector3.up));
+//DrawRelative(1, part.transform.position, part.transform.TransformDirection(Vector3.right));
+//DrawRelative(2, part.transform.position, part.transform.TransformDirection(Vector3.forward));
+		}
 
 //		public void Update()
 //		{
@@ -802,31 +587,270 @@ int iTry = 2;
 			if (!HighLogic.LoadedSceneIsFlight)
 				return;
 
-/*			if (this.attachState == aCompoundPart.AttachState.Attached)
-			{
-				int num = this.cmpModules.Length;
-				while (num-- > 0)
-				{
-					this.cmpModules[num].OnTargetUpdate();
-				}
-			}*/
-			// hier neu rechnen und so... ich denke, das gehört hier rein... -> KSP tut das genau so und für struts finde ich das ok... auch wenn wir uns damit bewegen können
+			if(IsTarget)
+				return;
 
 			switch(currentMode)
 			{
 			case Mode.free:
+			case Mode.broken:
 				break;
 
 			case Mode.connecting:
-				s(false); // neu nicht 1 Schritt, sondern in kleinen Schritten annähern
-				break;
-
 			case Mode.linked:
-				s(true); // muss schon verbunden sein
+				{
+					// zuerst die Rotation der Basis
+
+					Vector3 globalAxis = part.transform.TransformDirection(axis);
+
+					float angleBase =
+						MinimizeTurn(
+							90 + AngleSigned(
+								part.transform.TransformDirection(pointer),
+								Vector3.ProjectOnPlane(targetObject.transform.position - part.transform.position, globalAxis), globalAxis));
+
+					Quaternion rotationBase = Quaternion.AngleAxis(-angleBase, axis);
+
+					// dann die Rotation der Strebe
+
+					Vector3 globalPointer = part.transform.TransformDirection(rotationBase * pointer);
+
+					float angleStrut =
+						AngleSigned(
+							globalAxis,
+							targetObject.transform.position - part.transform.position, globalPointer);	// FEHLER, ausser er hätte einen Offset, dann statt part-position diesen noch nutzen
+
+					Quaternion rotationStrut = Quaternion.AngleAxis(-angleStrut, rotationBase * pointer);
+
+					// jetzt noch die Länge der Strebe
+
+					float distance = (targetObject.transform.position - part.transform.position).magnitude;
+
+					// und die Drehung des Kopfs
+
+					Quaternion rotationHead = quat(targetObject.transform, CalculateBestHeadTurn());
+						// die wär global und von allem oberen losgelöst... offenbar
+
+
+					if(currentMode == Mode.linked)
+					{
+						Quaternion rot = Quaternion.AngleAxis(-angleBase, axis);
+
+						Anchor.localRotation = rot * AnchorOriginalRotation;
+
+						rot = rot * Quaternion.AngleAxis(-angleStrut, pointer);
+
+						LightsDull.localRotation = rot * LightsDullOriginalRotation;
+						LightsBright.localRotation = rot * LightsBrightOriginalRotation;
+						Strut.localRotation = rot * StrutOriginalRotation;
+
+						Strut.localScale = new Vector3(distance * StrutScaleFactor, 1, 1);
+
+						Grappler.rotation = rotationHead;
+						Grappler.position = targetObject.transform.position;
+					}
+					else // Schrittweise sich annähern versuchen
+					{
+						Quaternion rot1 = Quaternion.AngleAxis(-angleBase, axis);
+
+						Quaternion AnchorRotation = rot1 * AnchorOriginalRotation;
+
+						float angle = Quaternion.Angle(Anchor.localRotation, AnchorRotation);
+
+						if(angle >= 1f)
+						{
+							Quaternion lrot1 = Quaternion.Slerp(Quaternion.identity, Quaternion.Inverse(Anchor.localRotation) * AnchorRotation, 1 / angle);
+
+							Anchor.localRotation *= lrot1;
+
+							LightsDull.localRotation *= lrot1;
+							LightsBright.localRotation *= lrot1;
+							Strut.localRotation *= lrot1;
+							Grappler.localRotation *= lrot1;
+
+							soundSound.Update(soundVolume, 7 * soundPitch);
+							soundSound.Play();
+						}
+						else
+						{
+							Quaternion lrot1 = Quaternion.Inverse(Anchor.localRotation) * AnchorRotation;
+					
+							Anchor.localRotation *= lrot1; // FEHLER, oder hier = AnchorRotation machen?
+
+							LightsDull.localRotation *= lrot1;
+							LightsBright.localRotation *= lrot1;
+							Strut.localRotation *= lrot1;
+							Grappler.localRotation *= lrot1;
+
+
+							Quaternion rot2 = Quaternion.AngleAxis(-angleStrut, pointer);
+
+							Quaternion StrutRotation = rot1 * rot2 * StrutOriginalRotation;
+
+							angle = Quaternion.Angle(Strut.localRotation, StrutRotation);
+
+							if(angle >= 1f)
+							{
+								Quaternion lrot2 = Quaternion.Slerp(Quaternion.identity, Quaternion.Inverse(Strut.localRotation) * StrutRotation, 1 / angle);
+
+								LightsDull.localRotation *= lrot2;
+								LightsBright.localRotation *= lrot2;
+								Strut.localRotation *= lrot2;
+								Grappler.localRotation *= lrot2;
+
+								Grappler.localPosition = Strut.localRotation * GrapplerOriginalPosition;
+
+								soundSound.Update(soundVolume, 4 * soundPitch);
+								soundSound.Play();
+							}
+							else
+							{
+								LightsDull.localRotation = rot1 * rot2 * LightsDullOriginalRotation;
+								LightsBright.localRotation = rot1 * rot2 * LightsBrightOriginalRotation;
+								Strut.localRotation = StrutRotation;
+								Grappler.localRotation = rot1 * rot2 * GrapplerOriginalRotation;
+
+								Grappler.localPosition = Strut.localRotation * GrapplerOriginalPosition;
+
+								if(distance - (Strut.localScale.x / StrutScaleFactor) > 0.005f)
+								{
+									float d = (Strut.localScale.x / StrutScaleFactor) + 0.005f;
+
+									Strut.localScale = new Vector3(d * StrutScaleFactor, 1, 1);
+
+									Grappler.position = part.transform.position + ((targetObject.transform.position - part.transform.position).normalized * d);
+
+									if(distance - d < 0.5f)
+										Grappler.rotation = Quaternion.Slerp(Grappler.rotation, rotationHead, (distance < 0.5f) ? (d / distance) : ((0.5f - distance + d) / 0.5f));
+
+									soundSound.Update(soundVolume * 3, soundPitch);
+									soundSound.Play();
+								}
+								else
+								{
+									Strut.localScale = new Vector3(distance * StrutScaleFactor, 1, 1);
+
+									Grappler.rotation = rotationHead;
+									Grappler.position = targetObject.transform.position;
+
+									currentMode = Mode.linked;
+									soundSound.Stop();
+
+									CreateJoints();
+								}
+							}
+						}
+					}
+				}
 				break;
 
 			case Mode.retracting:
-				t();
+				{
+					// zuerst die Rotation der Basis
+
+					float angleBase =
+						MinimizeTurn(AngleSigned(AnchorOriginalRotation * pointer, Anchor.localRotation * pointer, axis));
+
+					Quaternion rotationBase = Quaternion.AngleAxis(-angleBase, axis);
+
+					// dann die Rotation der Strebe
+
+					float angleStrut =
+						AngleSigned(StrutOriginalRotation * axis, Strut.localRotation * axis, pointer);
+
+					Quaternion rotationStrut = Quaternion.AngleAxis(-angleStrut, rotationBase * pointer);
+
+					// jetzt noch die Länge der Strebe
+
+					float distance = (Grappler.position - part.transform.position).magnitude;
+
+					// zuerst zurückziehen und den Kopf zurückdrehen
+
+					if(Strut.localScale.x >= (1 + 0.005 * StrutScaleFactor))
+					{
+						Grappler.localPosition = Strut.localRotation * GrapplerOriginalPosition;
+
+						float d = (Strut.localScale.x / StrutScaleFactor) - 0.005f;
+
+						Strut.localScale = new Vector3(d * StrutScaleFactor, 1, 1);
+
+						Grappler.position = part.transform.position + ((Grappler.position - part.transform.position).normalized * d);
+
+						Quaternion rot = Quaternion.AngleAxis(-angleBase, axis) * Quaternion.AngleAxis(-angleStrut, pointer);
+
+						Quaternion rotationHead = rot * GrapplerOriginalRotation;
+
+						float angle = Quaternion.Angle(Grappler.rotation, rotationHead);
+
+						if(angle > 3f)
+							Grappler.localRotation = Quaternion.Slerp(Grappler.localRotation, rotationHead, 3f / angle);
+						else
+							Grappler.localRotation = rotationHead;
+
+						soundSound.Update(soundVolume * 3, soundPitch);
+						soundSound.Play();
+					}
+					else
+					{
+						Strut.localScale = Vector3.one;
+
+						if(Mathf.Abs(angleStrut) > 1f)
+						{
+							angleStrut += (angleStrut < 0f ? 1f : -1f);
+
+							Quaternion rot = Quaternion.AngleAxis(-angleBase, axis);
+
+							Anchor.localRotation = rot * AnchorOriginalRotation;
+
+							rot = rot * Quaternion.AngleAxis(-angleStrut, pointer);
+
+							LightsDull.localRotation = rot * LightsDullOriginalRotation;
+							LightsBright.localRotation = rot * LightsBrightOriginalRotation;
+							Strut.localRotation = rot * StrutOriginalRotation;
+							Grappler.localRotation = rot * GrapplerOriginalRotation;
+
+							Grappler.localPosition = Strut.localRotation * GrapplerOriginalPosition;
+
+							soundSound.Update(soundVolume, 4 * soundPitch);
+							soundSound.Play();
+						}
+						else
+						{
+							if(Mathf.Abs(angleBase) >= 1f)
+							{
+								angleBase += (angleBase < 0f ? 1f : -1f);
+
+								Quaternion rot = Quaternion.AngleAxis(-angleBase, axis);
+
+								Anchor.localRotation = rot * AnchorOriginalRotation;
+
+								LightsDull.localRotation = rot * LightsDullOriginalRotation;
+								LightsBright.localRotation = rot * LightsBrightOriginalRotation;
+								Strut.localRotation = rot * StrutOriginalRotation;
+								Grappler.localRotation = rot * GrapplerOriginalRotation;
+
+								Grappler.localPosition = Strut.localRotation * GrapplerOriginalPosition;
+
+								soundSound.Update(soundVolume, 7 * soundPitch);
+								soundSound.Play();
+							}
+							else
+							{
+								Anchor.localRotation = AnchorOriginalRotation;
+
+								LightsDull.localRotation = LightsDullOriginalRotation;
+								LightsBright.localRotation = LightsBrightOriginalRotation;
+								Strut.localRotation = StrutOriginalRotation;
+								Grappler.localRotation = GrapplerOriginalRotation;
+			
+								Grappler.localPosition = GrapplerOriginalPosition;
+
+								currentMode = Mode.free;
+								soundSound.Stop();
+							}
+						}
+					}
+				}
 				break;
 			}
 		}
@@ -849,10 +873,16 @@ int iTry = 2;
 		public void Unlink()
 		{
 			RemoveLink();
-
-	//		ResetMeshPositions();
+			// FEHLER, bin ich gerade im Link-Modus, ist die Animation etwas falsch... (Grappler-Kopf und das Zurückdrehen des Struts)
 		}
 
+		////////////////////////////////////////
+		// IJointLockState (auto strut support)
+
+		bool IJointLockState.IsJointUnlocked()
+		{
+			return true;
+		}
 
 		////////////////////////////////////////
 		// Debug
@@ -952,9 +982,6 @@ Quaternion _rot2; // lokale Rotation des Greifers (angewendet nach der des Anker
 		[KSPField(isPersistant = false)] public string SimpleLightsName;
 		[KSPField(isPersistant = false)] public string SimpleLightsSecondaryName;
 
-		public FXGroup SoundAttach;
-		public FXGroup SoundBreak;
-		public FXGroup SoundDetach;
 		[KSPField(isPersistant = false, guiActive = true)] public string State = "n.a.";
 		[KSPField(isPersistant = true)] public bool StraightOutAttachAppliedInEditor = false;
 		[KSPField(guiActive = true)] public string Strength = LinkType.None.ToString();
@@ -1745,13 +1772,6 @@ joint2_ = null;
 				FreeAttachStraight();
 		}
 
-		public void OnJointBreak(float breakForce)
-		{
-			jointBroken = true;
-			PlayBreakSound();
-			OSD.PostMessage("Joint broken!");
-		}
-
 		public override void OnStart(StartState state)
 		{
 DebugInit();
@@ -1787,23 +1807,6 @@ if(_position == Vector3.zero)
 			ticksForDelayedStart = HighLogic.LoadedSceneIsEditor ? 0 : Config.Instance.StartDelay;
 			strutRealignCounter = Config.Instance.StrutRealignInterval*(HighLogic.LoadedSceneIsEditor ? 3 : 0);
 
-			if(SoundAttach == null || SoundBreak == null || SoundDetach == null ||
-				!GameDatabase.Instance.ExistsAudioClip(Config.Instance.SoundAttachFileUrl) ||
-				!GameDatabase.Instance.ExistsAudioClip(Config.Instance.SoundDetachFileUrl) ||
-				!GameDatabase.Instance.ExistsAudioClip(Config.Instance.SoundBreakFileUrl))
-			{
-				Debug.Log("[IRAS] sounds cannot be loaded." +
-						  (SoundAttach == null ? "FXGroup not instantiated" : "sound file not found"));
-				soundFlag = false;
-			}
-			else
-			{
-				SetupFxGroup(SoundAttach, gameObject, Config.Instance.SoundAttachFileUrl);
-				SetupFxGroup(SoundDetach, gameObject, Config.Instance.SoundDetachFileUrl);
-				SetupFxGroup(SoundBreak, gameObject, Config.Instance.SoundBreakFileUrl);
-				soundFlag = true;
-			}
-
 			initialized = true;
 		}
 
@@ -1835,22 +1838,6 @@ if(_position == Vector3.zero)
 			UpdateGui();
 		}
 
-		public void PlayAttachSound()
-		{
-			PlayAudio(SoundAttach);
-		}
-
-		private void PlayAudio(FXGroup group)
-		{
-			if(!soundFlag || group == null || group.audio == null)
-				return;
-			group.audio.Play();
-		}
-
-		public void PlayBreakSound()
-		{
-			PlayAudio(SoundBreak);
-		}
 
 		private void PlayDeployAnimation(float speed)
 		{
@@ -1870,11 +1857,6 @@ if(_position == Vector3.zero)
 				ani[AnimationName].time = ani[AnimationName].length;
 			ani[AnimationName].speed = speed;
 			ani.Play(AnimationName);
-		}
-
-		public void PlayDetachSound()
-		{
-			PlayAudio(SoundDetach);
 		}
 
 		private IEnumerator PreparePartForFreeAttach(bool straightOut = false, int tryCount = 0)
@@ -2253,18 +2235,6 @@ if(_position == Vector3.zero)
 			OldTargeter = Targeter;
 			Targeter = targeter;
 			Mode = Mode.Target;
-		}
-
-		private static void SetupFxGroup(FXGroup group, GameObject gameObject, string audioFileUrl)
-		{
-			group.audio = gameObject.AddComponent<AudioSource>();
-			group.audio.clip = GameDatabase.Instance.GetAudioClip(audioFileUrl);
-			group.audio.dopplerLevel = 0f;
-			group.audio.rolloffMode = AudioRolloffMode.Linear;
-			group.audio.maxDistance = 30f;
-			group.audio.loop = false;
-			group.audio.playOnAwake = false;
-			group.audio.volume = GameSettings.SHIP_VOLUME;
 		}
 
 		public void ShowGrappler(bool show, Vector3 targetPos, Vector3 lookAtPoint, bool applyOffset,

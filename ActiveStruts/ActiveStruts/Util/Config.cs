@@ -24,7 +24,7 @@ namespace ActiveStruts.Util
 
 		private static readonly Dictionary<string, SettingsEntry> values = new Dictionary<string, SettingsEntry>
 		{
-			{"MaxDistance", new SettingsEntry(15f)},
+			{"MaxDistance", new SettingsEntry(7f)},
 			{"MaxAngle", new SettingsEntry(95f)},
 			{"WeakJointStrength", new SettingsEntry(1f)},
 			{"NormalJointStrength", new SettingsEntry(5f)},

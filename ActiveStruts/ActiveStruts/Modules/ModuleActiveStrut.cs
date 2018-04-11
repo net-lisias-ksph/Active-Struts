@@ -10,7 +10,7 @@ using Utilities = ActiveStruts.Util.Utilities;
 
 namespace ActiveStruts.Modules
 {
-	public class ModuleActiveStrut : PartModule, IDResetable, KerbalJointReinforcement.IKJRaware, IActiveStrut
+	public class ModuleActiveStrut : PartModule, IDResetable, IActiveStrut
 	{
 public bool bArsch = false;
 
@@ -21,6 +21,7 @@ public override void OnAwake()
 		public Transform transform_() { return transform; }
 public Part Part() { return part; }
 public void SetLink(ModuleActiveStrut_v3 target) {}
+public void SetFreeLink(RaycastResult r) {}
 
 
 		private const ControlTypes EDITOR_LOCK_MASK = ControlTypes.EDITOR_PAD_PICK_PLACE | ControlTypes.EDITOR_ICON_PICK;

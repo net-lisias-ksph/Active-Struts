@@ -5,6 +5,9 @@ using System.Text;
 
 using UnityEngine;
 
+using ActiveStruts.Util;
+
+
 namespace ActiveStruts.Modules
 {
 	public interface IActiveStrut
@@ -20,6 +23,7 @@ namespace ActiveStruts.Modules
 		Part Part();
 
 		void SetLink(ModuleActiveStrut_v3 target);
+		void SetFreeLink(RaycastResult raycast);
 		void RemoveLink();
 
 	}

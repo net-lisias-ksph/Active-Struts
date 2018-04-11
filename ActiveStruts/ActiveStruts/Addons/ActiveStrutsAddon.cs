@@ -544,6 +544,15 @@ namespace ActiveStruts.Addons
 
 		private void ProcessFreeAttachPlacement(RaycastResult raycast)
 		{
+//			raycast.Hit.point
+
+// FEHLER, mal ein Test... ich baue ein Objekt auf, wo ich auf das Target treffe... mal sehen ob ich das später auch für normale Teils brauche...
+
+			CurrentTargeter.SetFreeLink(raycast);
+
+
+/* das da unten ist alles Schrott... jetzt setzen wir mal ein Element...
+ * 
 			if(NewSpawnedPart == null)
 			{
 				Mode = AddonMode.None;
@@ -559,7 +568,8 @@ namespace ActiveStruts.Addons
 				return;
 			}
 			partPlacementInProgress = true;
-			StartCoroutine(PlaceNewPart(raycast));
+			StartCoroutine(PlaceNewPart(raycast));*/
+
 		}
 
 		private static void _processIdResets()
