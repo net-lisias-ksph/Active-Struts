@@ -25,9 +25,9 @@ namespace ActiveStruts.Addons
 	{
 // FEHLER, public ist temp, weil... das kann total private sein... echt jetzt
 		public static AddonMode Mode { get; set; }
-		public static IActiveStrut CurrentTargeter { get; set; }
+		public static ModuleIRActiveStrut_v3 CurrentTargeter { get; set; }
 
-		private static List<IActiveStrut> targetHighlightedParts;
+		private static List<ModuleIRActiveStrutTarget_v3> targetHighlightedParts;
 
 // FEHLER, Daten sind noch ungeprüft ab hier
 
@@ -55,7 +55,7 @@ namespace ActiveStruts.Addons
 		////////////////////////////////////////
 		// Functions
 
-		static public void StartLink(IActiveStrut p_Targeter)
+		static public void StartLink(ModuleIRActiveStrut_v3 p_Targeter)
 		{
 			Mode = AddonMode.Link;
 			CurrentTargeter = p_Targeter;
@@ -65,12 +65,11 @@ namespace ActiveStruts.Addons
 			if(Config.Instance.ShowHelpTexts)
 				OSD.PostMessage(Config.Instance.LinkHelpText, 5);
 
-			ModuleActiveStrut_v3[] aStruts = FlightGlobals.FindObjectsOfType<ModuleActiveStrut_v3>();
+			ModuleIRActiveStrutTarget_v3[] aStruts = FlightGlobals.FindObjectsOfType<ModuleIRActiveStrutTarget_v3>();
 
 			for(int i = 0; i < aStruts.Length; i++)
 			{
-				if(aStruts[i].IsValidTarget
-				&& (((IActiveStrut)aStruts[i]) != p_Targeter))
+				if(aStruts[i].IsValidTarget)
 				{
 					aStruts[i].part.SetHighlightColor(Color.cyan);
 					aStruts[i].part.SetHighlight(true, false);
@@ -89,8 +88,8 @@ namespace ActiveStruts.Addons
 
 			InputLockManager.RemoveControlLock(Config.Instance.EditorInputLockId);
 
-			foreach(IActiveStrut p in targetHighlightedParts)
-				p.Part().SetHighlightDefault();
+			foreach(ModuleIRActiveStrutTarget_v3 p in targetHighlightedParts)
+				p.part.SetHighlightDefault();
 
 			targetHighlightedParts.Clear();
 		}
@@ -102,8 +101,8 @@ namespace ActiveStruts.Addons
 
 			InputLockManager.RemoveControlLock(Config.Instance.EditorInputLockId);
 
-			foreach(IActiveStrut p in targetHighlightedParts)
-				p.Part().SetHighlightDefault();
+			foreach(ModuleIRActiveStrutTarget_v3 p in targetHighlightedParts)
+				p.part.SetHighlightDefault();
 
 			targetHighlightedParts.Clear();
 		}
@@ -115,7 +114,7 @@ namespace ActiveStruts.Addons
 			if(!HighLogic.LoadedSceneIsFlight && !HighLogic.LoadedSceneIsEditor)
 				return;
 
-			targetHighlightedParts = new List<IActiveStrut>();
+			targetHighlightedParts = new List<ModuleIRActiveStrutTarget_v3>();
 
 			unusedTargetPartRemovalCounter = HighLogic.LoadedSceneIsEditor ? 30 : 180;
 			FlexibleAttachActive = false;
@@ -263,7 +262,7 @@ namespace ActiveStruts.Addons
 
 					if(validPos)
 					{
-						ModuleActiveStrut_v3 hittedActiveStrut = raycast.HittedPart.gameObject.GetComponent<ModuleActiveStrut_v3>();
+						ModuleIRActiveStrut_v3 hittedActiveStrut = raycast.HittedPart.gameObject.GetComponent<ModuleIRActiveStrut_v3>();
 
 	//				var tPos = CurrentTargeter.Origin_().position;
 	//				var mp.Item1osDist = Vector3.Distance(tPos, mp.Item1);
@@ -278,7 +277,7 @@ namespace ActiveStruts.Addons
 					if(Input.GetKeyDown(KeyCode.Mouse0))
 					{
 							// FEHLER, gleich wie oben, nicht gut -> zusammenfassen oder sowas
-						ModuleActiveStrut_v3 hittedActiveStrut = raycast.HittedPart.gameObject.GetComponent<ModuleActiveStrut_v3>();
+						ModuleIRActiveStrutTarget_v3 hittedActiveStrut = raycast.HittedPart.gameObject.GetComponent<ModuleIRActiveStrutTarget_v3>();
 
 						if(hittedActiveStrut != null)
 							CurrentTargeter.SetLink(hittedActiveStrut);
@@ -317,7 +316,7 @@ namespace ActiveStruts.Addons
 			{
 				return;
 			}
-			CurrentTargeter.PlaceFreeAttach(data.host);
+	//		CurrentTargeter.PlaceFreeAttach(data.host);
 			NewSpawnedPart = null;
 		}
 
@@ -452,7 +451,7 @@ namespace ActiveStruts.Addons
 			yield return new WaitForFixedUpdate();
 			yield return new WaitForSeconds(0.1f);
 			yield return new WaitForFixedUpdate();
-			CurrentTargeter.PlaceFreeAttach(NewSpawnedPart);
+		//	CurrentTargeter.PlaceFreeAttach(NewSpawnedPart);
 			partPlacementInProgress = false;
 			NewSpawnedPart = null;
 		}

@@ -12,12 +12,11 @@ using ActiveStruts.Util;
 
 namespace ActiveStruts.Modules
 {
-	public class ModuleActiveStrut_v3 : PartModule, IJointLockState, IActiveStrut // FEHLER, IActiveStrut ist temp während Umstellung
+	public class ModuleIRActiveStrut_v3 : PartModule, IJointLockState, IActiveStrut // FEHLER, IActiveStrut ist temp während Umstellung
 	{
 // FEHLER, Würgi Würgi
 public void UpdateGui() {}
 public Transform Origin_() { return part.transform; } // das braucht der aussen um die grüne Linie zu zeichnen
-public void PlaceFreeAttach(Part p, bool b) {}
 		public Transform transform_() { return null; }
 public Vector3 RealModelForward { get { return Vector3.zero; } }
 
@@ -36,7 +35,10 @@ public Part Part() { return part; }
 		[KSPField(isPersistant = true)] private float translationalSpring = 100000f;
 		[KSPField(isPersistant = true)] private float rotationalSpring = 100000f;
 
-		// Sound
+		[KSPField(isPersistant = false)] public float maxDistance = 7f; // FEHLER, viel zu gross
+		[KSPField(isPersistant = false)] public float maxAngle = 95f;	// FEHLER, 95? wohin? gegen hinten gedreht? geht doch gar nicht... -> auch falsch... 80 oder so?
+			// FEHLER, Werte nutzen !! die zwei da oben werden nie genutzt im Moment
+
 		// Sound
 		[KSPField(isPersistant = false)] public float soundPitch = 0.8f;
 		[KSPField(isPersistant = false)] public float soundVolume = 0.5f;
@@ -78,14 +80,13 @@ public Part Part() { return part; }
 		private bool isOnRails = false;
 
 
-		[KSPField(isPersistant = true)] public bool IsTarget;
-		Part connectedPart = null;
+		ModuleIRActiveStrutTarget_v3 connectedPart = null;
 
 		enum Mode { free, connecting, linked, retracting, broken };
 		Mode currentMode = Mode.free;
 
 
-		public ModuleActiveStrut_v3()
+		public ModuleIRActiveStrut_v3()
 		{
 			DebugInit();
 		}
@@ -121,6 +122,8 @@ public Part Part() { return part; }
 			SetupFxGroup(SoundAttach, gameObject, Config.Instance.SoundAttachFileUrl);
 			SetupFxGroup(SoundDetach, gameObject, Config.Instance.SoundDetachFileUrl);
 			SetupFxGroup(SoundBreak, gameObject, Config.Instance.SoundBreakFileUrl);
+
+			UpdateUI();
 		}
 
 		public void OnDestroy()
@@ -193,14 +196,6 @@ public Part Part() { return part; }
 
 				DestroyImmediate(Strut.GetComponent<Collider>());
 			}
-			else if(!IsTarget)
-			{
-/*				simpleStrut = Utilities.CreateSimpleStrut("Targeterstrut");
-				simpleStrut.SetActive(true);
-				simpleStrut.transform.localScale = Vector3.zero;
-
-				Strut = simpleStrut.transform;*/
-			}
 
 			if(!string.IsNullOrEmpty(LightsBrightName))
 			{
@@ -244,39 +239,34 @@ public Part Part() { return part; }
 */
 		}
 
-		public bool IsValidTarget
-		{ get { return IsTarget && !connectedPart; } } // FEHLER, nur wenn Target und nicht belegt...
-
-		public void SetLink(ModuleActiveStrut_v3 target)
+		public void SetLink(ModuleIRActiveStrutTarget_v3 target)
 		{
-			connectedPart = target.part;
-			target.connectedPart = part;
+			connectedPart = target;
+			target.connectedPart = this;
 
 			currentMode = Mode.connecting;
 
 			CreateTarget(target.part, target.transform.position, -target.transform.right);
 
-			Events["Link"].active = Events["Link"].guiActive = false;
-			Events["Unlink"].active = Events["Unlink"].guiActive = true;
+			UpdateUI();
 		}
 
 		public void SetFreeLink(RaycastResult raycast)
 		{
-			connectedPart = raycast.HittedPart;
+			connectedPart = raycast.HittedPart.GetComponent<ModuleIRActiveStrutTarget_v3>();
 
 			currentMode = Mode.connecting;
 
 			CreateTarget(raycast.HittedPart, raycast.Hit.point, raycast.Hit.normal);
 
-			Events["Link"].active = Events["Link"].guiActive = false;
-			Events["Unlink"].active = Events["Unlink"].guiActive = true;
+			UpdateUI();
 		}
 
 		public void RemoveLink()
 		{
 			if(connectedPart != null)
 			{
-				ModuleActiveStrut_v3 cP = connectedPart.GetComponent<ModuleActiveStrut_v3>();
+				ModuleIRActiveStrut_v3 cP = connectedPart.GetComponent<ModuleIRActiveStrut_v3>();
 
 				if(cP)
 					cP.connectedPart = null;
@@ -289,8 +279,7 @@ public Part Part() { return part; }
 				currentMode = Mode.retracting;
 			}
 
-			Events["Link"].active = Events["Link"].guiActive = true;
-			Events["Unlink"].active = Events["Unlink"].guiActive = false;
+			UpdateUI();
 		}
 
 		public static float AngleSigned(Vector3 v1, Vector3 v2, Vector3 n)
@@ -587,9 +576,6 @@ public Part Part() { return part; }
 			if (!HighLogic.LoadedSceneIsFlight)
 				return;
 
-			if(IsTarget)
-				return;
-
 			switch(currentMode)
 			{
 			case Mode.free:
@@ -659,7 +645,7 @@ public Part Part() { return part; }
 
 						if(angle >= 1f)
 						{
-							Quaternion lrot1 = Quaternion.Slerp(Quaternion.identity, Quaternion.Inverse(Anchor.localRotation) * AnchorRotation, 1 / angle);
+							Quaternion lrot1 = Quaternion.Slerp(Quaternion.identity, Quaternion.Inverse(Anchor.localRotation) * AnchorRotation, 1f / angle);
 
 							Anchor.localRotation *= lrot1;
 
@@ -691,7 +677,7 @@ public Part Part() { return part; }
 
 							if(angle >= 1f)
 							{
-								Quaternion lrot2 = Quaternion.Slerp(Quaternion.identity, Quaternion.Inverse(Strut.localRotation) * StrutRotation, 1 / angle);
+								Quaternion lrot2 = Quaternion.Slerp(Quaternion.identity, Quaternion.Inverse(Strut.localRotation) * StrutRotation, 1f / angle);
 
 								LightsDull.localRotation *= lrot2;
 								LightsBright.localRotation *= lrot2;
@@ -782,8 +768,8 @@ public Part Part() { return part; }
 
 						float angle = Quaternion.Angle(Grappler.rotation, rotationHead);
 
-						if(angle > 3f)
-							Grappler.localRotation = Quaternion.Slerp(Grappler.localRotation, rotationHead, 3f / angle);
+						if(angle > 1f)
+							Grappler.localRotation = Quaternion.Slerp(Grappler.localRotation, rotationHead, 1f / angle);
 						else
 							Grappler.localRotation = rotationHead;
 
@@ -856,7 +842,32 @@ public Part Part() { return part; }
 		}
 
 		////////////////////////////////////////
-		// Gui
+		// IJointLockState (auto strut support)
+
+		bool IJointLockState.IsJointUnlocked()
+		{
+			return true;
+		}
+
+		////////////////////////////////////////
+		// Context Menu
+
+		private void UpdateUI()
+		{
+			if(HighLogic.LoadedSceneIsFlight)
+			{
+				Events["Link"].active = Events["Link"].guiActive = (connectedPart == null);
+				Events["Unlink"].active = Events["Unlink"].guiActive = (connectedPart != null);
+			}
+			else if(HighLogic.LoadedSceneIsEditor)
+			{
+				Events["Link"].active = Events["Link"].guiActiveEditor = (connectedPart == null);
+				Events["Unlink"].active = Events["Unlink"].guiActiveEditor = (connectedPart != null);
+			}
+		}
+
+		////////////////////////////////////////
+		// Actions
 
 		[KSPEvent(guiActive = true, guiActiveEditor = true, guiActiveUnfocused = true, unfocusedRange = Config.UNFOCUSED_RANGE, guiName = "Link")]
 		public void Link()
@@ -865,8 +876,6 @@ public Part Part() { return part; }
 				ActiveStrutsAddon.AbortLink();
 
 			ActiveStrutsAddon.StartLink(this);
-
-			Events["Link"].active = false; // FEHLER, scheint nichts zu nützen...
 		}
 
 		[KSPEvent(guiActive = true, guiActiveEditor = true, guiActiveUnfocused = true, unfocusedRange = Config.UNFOCUSED_RANGE, guiName = "Unlink")]
@@ -874,14 +883,6 @@ public Part Part() { return part; }
 		{
 			RemoveLink();
 			// FEHLER, bin ich gerade im Link-Modus, ist die Animation etwas falsch... (Grappler-Kopf und das Zurückdrehen des Struts)
-		}
-
-		////////////////////////////////////////
-		// IJointLockState (auto strut support)
-
-		bool IJointLockState.IsJointUnlocked()
-		{
-			return true;
 		}
 
 		////////////////////////////////////////

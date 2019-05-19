@@ -20,7 +20,7 @@ public override void OnAwake()
 }
 		public Transform transform_() { return transform; }
 public Part Part() { return part; }
-public void SetLink(ModuleActiveStrut_v3 target) {}
+public void SetLink(ModuleIRActiveStrutTarget_v3 target) {}
 public void SetFreeLink(RaycastResult r) {}
 
 
@@ -844,90 +844,6 @@ joint2_ = null;
 			OSD.PostMessage("Docked.");
 		}
 
-		[KSPEvent(name = "FreeAttach", active = false, guiActiveEditor = false, guiName = "FreeAttach Link",
-			guiActiveUnfocused = true, unfocusedRange = Config.UNFOCUSED_RANGE)]
-		public void FreeAttach()
-		{
-			if(HighLogic.LoadedSceneIsEditor)
-			{
-				InputLockManager.SetControlLock(EDITOR_LOCK_MASK, Config.Instance.EditorInputLockId);
-				var newPart = PartFactory.SpawnPartInEditor("ASTargetCube");
-				Debug.Log("[IRAS] spawned part in editor");
-				ActiveStrutsAddon.CurrentTargeter = this;
-				ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
-				ActiveStrutsAddon.NewSpawnedPart = newPart;
-			}
-			StraightOutAttachAppliedInEditor = false;
-			if(Config.Instance.ShowHelpTexts)
-				OSD.PostMessage(Config.Instance.FreeAttachHelpText, 5);
-			if(HighLogic.LoadedSceneIsFlight)
-				StartCoroutine(PreparePartForFreeAttach());
-		}
-
-		[KSPEvent(name = "FreeAttachStraight", active = false, guiName = "Straight Up FreeAttach",
-			guiActiveUnfocused = true, unfocusedRange = Config.UNFOCUSED_RANGE)]
-		public void FreeAttachStraight()
-		{
-			var raycast = _performStraightOutRaycast();
-			if(raycast.Item1)
-			{
-				var hittedPart = raycast.Item2.PartFromHit();
-				var valid = hittedPart != null;
-				if(valid)
-				{
-					if(HighLogic.LoadedSceneIsEditor)
-					{
-						StraightOutAttachAppliedInEditor = true;
-						IsLinked = true;
-						IsFreeAttached = true;
-						UpdateGui();
-						straightOutAttached = true;
-						return;
-					}
-					StraightOutAttachAppliedInEditor = false;
-					IsLinked = false;
-					IsFreeAttached = false;
-					straightOutAttached = false;
-					if(HighLogic.LoadedSceneIsFlight)
-					{
-						//StartCoroutine(PreparePartForFreeAttach(true));
-						PlaceFreeAttach(hittedPart, true);
-						straightOutAttached = true;
-					}
-				}
-			}
-			else
-				OSD.PostMessage("Nothing has been hit.");
-		}
-
-		[KSPAction("FreeAttachStraightAction", KSPActionGroup.None, guiName = "Straight Up FreeAttach")]
-		public void FreeAttachStraightAction(KSPActionParam param)
-		{
-			if(Mode == Mode.Unlinked && !IsTargetOnly)
-				FreeAttachStraight();
-		}
-
-		[KSPEvent(name = "Link", active = false, guiName = "Link", guiActiveEditor = false, guiActiveUnfocused = true,
-			unfocusedRange = Config.UNFOCUSED_RANGE)]
-		public void Link()
-		{
-			StraightOutAttachAppliedInEditor = false;
-			if(HighLogic.LoadedSceneIsEditor)
-				InputLockManager.SetControlLock(EDITOR_LOCK_MASK, Config.Instance.EditorInputLockId);
-			Mode = Mode.Targeting;
-			foreach(var possibleTarget in this.GetAllPossibleTargets())
-			{
-				possibleTarget.SetTargetedBy(this);
-				possibleTarget.UpdateGui();
-			}
-			ActiveStrutsAddon.Mode = AddonMode.Link;
-			ActiveStrutsAddon.CurrentTargeter = this;
-			if(Config.Instance.ShowHelpTexts)
-				OSD.PostMessage(Config.Instance.LinkHelpText, 5);
-			UpdateGui();
-			DeployHead(NORMAL_ANI_SPEED);
-		}
-
 		public void OnJointBreak(float breakForce)
 		{
 			jointBroken = true;
@@ -1148,7 +1064,7 @@ if(_position == Vector3.zero)
 			else
 			{
 				ActiveStrutsAddon.NewSpawnedPart = newPart;
-				ActiveStrutsAddon.CurrentTargeter = this;
+	//			ActiveStrutsAddon.CurrentTargeter = this;
 				ActiveStrutsAddon.Mode = AddonMode.FreeAttach;
 			}
 		}
@@ -1288,7 +1204,7 @@ if(_position == Vector3.zero)
 		{
 			if(StraightOutAttachAppliedInEditor)
 			{
-				FreeAttachStraight();
+	//			FreeAttachStraight();
 				return;
 			}
 			if(IsFreeAttached)
@@ -2501,7 +2417,7 @@ if(false) // FEHLER FEHLER temp
 			if(rayres.Item1)
 			{
 //				ActiveStrutsAddon.NewSpawnedPart = newPart;
-				ActiveStrutsAddon.CurrentTargeter = this;
+//				ActiveStrutsAddon.CurrentTargeter = this;
 				StartCoroutine(ActiveStrutsAddon.PlaceNewPart(rayres.Item2.PartFromHit(), rayres.Item2));
 				return;
 			}

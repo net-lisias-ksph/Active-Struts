@@ -54,7 +54,9 @@
     <Compile Include="Effects\SoundSource.cs" />
     <Compile Include="Modules\IActiveStrut.cs" />
     <Compile Include="Modules\IDResetable.cs" />
-    <Compile Include="Modules\ModuleActiveStrut_v3.cs" />
+    <Compile Include="Modules\ModuleIRActiveStrutRemover.cs" />
+    <Compile Include="Modules\ModuleIRActiveStrutTarget_v3.cs" />
+    <Compile Include="Modules\ModuleIRActiveStrut_v3.cs" />
     <Compile Include="PartFactory.cs" />
     <Compile Include="Utility\Logger.cs" />
     <Compile Include="Util\ColorExtenstions.cs" />

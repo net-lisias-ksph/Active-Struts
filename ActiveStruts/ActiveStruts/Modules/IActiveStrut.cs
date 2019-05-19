@@ -12,7 +12,6 @@ namespace ActiveStruts.Modules
 {
 	public interface IActiveStrut
 	{
-		void PlaceFreeAttach(Part targetPart, bool isStraightOut = false);
 		void UpdateGui();
 
 //		Transform StrutOrigin_();
@@ -22,7 +21,7 @@ namespace ActiveStruts.Modules
 
 		Part Part();
 
-		void SetLink(ModuleActiveStrut_v3 target);
+		void SetLink(ModuleIRActiveStrutTarget_v3 target);
 		void SetFreeLink(RaycastResult raycast);
 		void RemoveLink();
 
