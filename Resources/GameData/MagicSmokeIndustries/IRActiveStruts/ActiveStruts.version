@@ -1,7 +1,7 @@
 ﻿{
   "NAME"     : "Infernal Robotics ActiveStruts",
   "DOWNLOAD" : "https://github.com/meirumeiru/IR-ActiveStruts/releases",
-  "URL"      : "https://raw.githubusercontent.com/meirumeiru/Active-Struts/develop/Resources/GameData/MagicSmokeIndustries/IRActiveStruts/ActiveStruts_1.4.version",
+  "URL"      : "https://raw.githubusercontent.com/meirumeiru/Active-Struts/develop/Resources/GameData/MagicSmokeIndustries/IRActiveStruts/ActiveStruts.version",
   "GITHUB" : {
       "USERNAME"   : "meirumeiru",
       "REPOSITORY" : "IR-ActiveStruts"
@@ -11,14 +11,14 @@
     "MINOR" : 0,
     "PATCH" : 0
   },
+  "KSP_VERSION" : {
+    "MAJOR" : 1,
+    "MINOR" : 7,
+    "PATCH" : 0
+  },
   "KSP_VERSION_MIN" : {
     "MAJOR" : 1,
     "MINOR" : 4,
     "PATCH" : 0
-  },
-  "KSP_VERSION_MAX" : {
-    "MAJOR" : 1,
-    "MINOR" : 4,
-    "PATCH" : 99
   }
 }
