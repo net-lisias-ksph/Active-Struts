@@ -1,0 +1,2 @@
+# Active Struts :: Change Log
+
